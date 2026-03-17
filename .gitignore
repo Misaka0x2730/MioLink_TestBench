@@ -1,0 +1,13 @@
+# Ignore build artifacts and generated files
+build/*
+
+# Ignore embedded-cli output file (generated during build)
+external/embedded-cli/lib/shl/*
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+.cache/
+
+# Ignore Python cache files
+*/__pycache__/
