@@ -2,7 +2,7 @@
 build/*
 
 # Ignore embedded-cli output file (generated during build)
-external/embedded-cli/lib/shl/*
+firmware/external/embedded-cli/lib/shl/*
 
 # Ignore IDE-specific files
 .vscode/
@@ -11,3 +11,13 @@ external/embedded-cli/lib/shl/*
 
 # Ignore Python cache files
 */__pycache__/
+
+# Temporarily ignore hc32f460 SDK
+firmware/external/hc32f460_ddl/
+
+# Ignore compiled Python files
+*.pyc
+*.pyd
+
+# Ignore MacOS specific files
+.DS_Store

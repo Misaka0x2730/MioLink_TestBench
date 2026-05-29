@@ -1,0 +1,1 @@
+"""SWO trace capture tests."""

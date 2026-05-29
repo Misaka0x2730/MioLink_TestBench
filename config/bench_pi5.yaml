@@ -1,0 +1,192 @@
+# Test bench configuration.
+#
+# Self-contained description of the current physical setup as a flat list
+# of connections. Each entry carries everything needed to identify the
+# probe, the target, and how they are wired together. This file does not
+# depend on probe.yaml or target.yaml.
+#
+# Field reference:
+#   probe              - human-readable probe model name
+#   serial             - probe USB serial number (unique on the bench)
+#   enabled            - optional, default true. Set to false to exclude
+#                        this probe from a bench run without removing the
+#                        entry. The runner skips disabled slots entirely
+#                        (no flashing, no version check, no tests).
+#   build_target       - PICO_BOARD value for the per-board firmware build
+#                        (e.g. miolink, miolink_pico, pico, pico_w, pico2_w).
+#                        Probes whose board is supported by the multi-board
+#                        auto-detect firmware (auto_rp2040) MUST set this so
+#                        the bench runner can exercise both the auto build
+#                        and the individual board build.
+#   hardware_version   - integer reported by `monitor version` after
+#                        `Hardware Version`. Used to verify probe identity
+#                        before running tests. Typical encodings:
+#                          1 - MioLink rev. A
+#                          2 - MioLink rev. B
+#                          3 - MioLink_Pico
+#                          4 - Pico / Pico W / Pico 2W
+#   part_number        - target MCU part number
+#   platform           - PLATFORM_NAME_STRING baked into the test_board
+#                        fixture firmware by CMake (matches a directory
+#                        under firmware/platforms/, e.g. stm32f103,
+#                        hc32f460). Selects the test_board_<platform>.elf
+#                        the runner loads onto the target.
+#   gdb_scan_name      - target name as reported by the probe during a GDB
+#                        scan (e.g. `monitor swdp_scan` / `monitor jtag_scan`)
+#   vtref              - Vtref mode on this slot:
+#                          self-powered:  target is independently powered;
+#                                         the probe only senses Vtref
+#                          powered:       target is powered from the probe
+#                                         Vtref output
+#                          not_supported: probe has no Vtref pin/control
+#                                         (Pico-class probes)
+#   vtref_voltage      - expected Vtref voltage in Volts. Required when
+#                        `vtref` is `self-powered` or `powered`; ignored
+#                        when `not_supported`.
+#   vtref_tolerance    - allowed Vtref deviation in Volts. Required when
+#                        `vtref` is `self-powered` or `powered`; ignored
+#                        when `not_supported`.
+#   tpwr_settle_sec    - seconds to wait after `monitor tpwr enable` for
+#                        the target rail to settle. Required when `vtref`
+#                        is `powered`; ignored otherwise. Depends on the
+#                        target board's decoupling, so it lives per-slot.
+#   freq               - optional debug-interface clock in Hz. Accepts an
+#                        integer (e.g. 4000000) or a string with k/M
+#                        suffix (e.g. "4M", "4000k"). Omit or set to null
+#                        to use the probe default.
+#   swo                - SWO trace pin status on this slot:
+#                          connected:   target SWO pin is wired to the
+#                                       probe; build the test_board
+#                                       fixture with CONFIG_TEST_SWO=ON.
+#                          not_present: SWO is not wired (or the probe
+#                                       has no SWO pin); build with
+#                                       CONFIG_TEST_SWO=OFF.
+#   cli                - non-empty list of CLI backends the target
+#                        firmware must be built for on this slot. Each
+#                        entry produces an independent test_board build
+#                        (one CMake configure per backend). Allowed
+#                        values:
+#                          uart:     CLI runs over a platform UART
+#                                    (CONFIG_CLI=UART).
+#                          rtt:      CLI runs over SEGGER RTT
+#                                    (CONFIG_CLI=RTT).
+#                          disabled: CLI is fully compiled out
+#                                    (CONFIG_CLI=NONE).
+#   interfaces         - debug interfaces physically wired on this slot
+#                        (any of: swd, jtag)
+#   uart               - UART bridge routing on the probe:
+#                          main:     dedicated UART pins
+#                          tdi_tdo:  routed over the TDI/TDO pins
+#                          disabled: no UART bridge wired on this slot
+#   reset_connected    - true if the probe nRST line is wired to the target
+
+connections:
+  - probe: "Pico W"
+    serial: "E661640843699535"
+    enabled: false
+    build_target: pico_w
+    hardware_version: 4
+    part_number: STM32F030F4P6
+    platform: stm32f030
+    gdb_scan_name: "STM32F03"
+    vtref: not_supported
+    swo: not_present
+    cli:
+      - uart
+    interfaces:
+      - swd
+    uart: tdi_tdo
+    reset_connected: false
+
+  - probe: "Pico"
+    serial: "E6616408436DA335"
+    build_target: pico
+    hardware_version: 4
+    part_number: STM32F030F4P6
+    platform: stm32f030
+    gdb_scan_name: "STM32F03"
+    vtref: not_supported
+    swo: not_present
+    cli:
+      - uart
+    interfaces:
+      - swd
+    uart: main
+    reset_connected: false
+
+  - probe: "Pico 2W"
+    serial: "1D15CCDB34B38397"
+    build_target: pico2_w
+    hardware_version: 4
+    part_number: STM32F103C8T6
+    platform: stm32f103
+    gdb_scan_name: "STM32F1 L/M density"
+    vtref: not_supported
+    swo: not_present
+    cli:
+      - uart
+    interfaces:
+      - swd
+      - jtag
+    uart: main
+    reset_connected: true
+
+  - probe: "MioLink_Pico"
+    serial: "45474150568CF92A"
+    enabled: false
+    build_target: miolink_pico
+    hardware_version: 3
+    part_number: HC32F460JETA
+    platform: hc32f460
+    gdb_scan_name: "HC32F460"
+    vtref: self-powered
+    vtref_voltage: 3.3
+    vtref_tolerance: 0.3
+    swo: not_present
+    cli:
+      - uart
+    interfaces:
+      - swd
+      - jtag
+    uart: main
+    reset_connected: true
+
+  - probe: "MioLink rev. A"
+    serial: "E66394664F387030"
+    build_target: miolink
+    hardware_version: 1
+    part_number: STM32F103C8T6
+    platform: stm32f103
+    gdb_scan_name: "STM32F1 L/M density"
+    vtref: powered
+    vtref_voltage: 3.3
+    vtref_tolerance: 0.3
+    tpwr_settle_sec: 0.5
+    swo: not_present
+    cli:
+      - uart
+    interfaces:
+      - swd
+      - jtag
+    uart: main
+    reset_connected: true
+
+  - probe: "MioLink rev. B"
+    serial: "E66410628F7F7523"
+    build_target: miolink
+    hardware_version: 2
+    part_number: STM32F401CDU6
+    platform: stm32f401
+    gdb_scan_name: "STM32F4"
+    vtref: powered
+    vtref_voltage: 3.3
+    vtref_tolerance: 0.3
+    tpwr_settle_sec: 0.5
+    swo: not_present
+    cli:
+      - uart
+    interfaces:
+      - swd
+      - jtag
+    uart: main
+    reset_connected: true

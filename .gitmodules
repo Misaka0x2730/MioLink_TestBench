@@ -1,21 +1,27 @@
-[submodule "external/RTT"]
-	path = external/RTT
+[submodule "firmware/external/RTT"]
+	path = firmware/external/RTT
 	url = https://github.com/SEGGERMicro/RTT.git
-[submodule "external/stm32f1xx-hal-driver"]
-	path = external/stm32f1xx-hal-driver
-	url = https://github.com/STMicroelectronics/stm32f1xx-hal-driver.git
-[submodule "external/embedded-cli"]
-	path = external/embedded-cli
+[submodule "firmware/external/embedded-cli"]
+	path = firmware/external/embedded-cli
 	url = https://github.com/funbiscuit/embedded-cli.git
-[submodule "external/cmsis-device-f1"]
-	path = external/cmsis-device-f1
-	url = https://github.com/STMicroelectronics/cmsis-device-f1.git
-[submodule "external/CMSIS_6"]
-	path = external/CMSIS_6
+[submodule "firmware/external/CMSIS_6"]
+	path = firmware/external/CMSIS_6
 	url = https://github.com/ARM-software/CMSIS_6.git
-[submodule "external/cmsis-device-f4"]
-	path = external/cmsis-device-f4
+[submodule "firmware/external/cmsis-device-f0"]
+	path = firmware/external/cmsis-device-f0
+	url = https://github.com/STMicroelectronics/cmsis-device-f0.git
+[submodule "firmware/external/stm32f0xx-hal-driver"]
+	path = firmware/external/stm32f0xx-hal-driver
+	url = https://github.com/STMicroelectronics/stm32f0xx-hal-driver.git
+[submodule "firmware/external/cmsis-device-f4"]
+	path = firmware/external/cmsis-device-f4
 	url = https://github.com/STMicroelectronics/cmsis-device-f4.git
-[submodule "external/stm32f4xx-hal-driver"]
-	path = external/stm32f4xx-hal-driver
+[submodule "firmware/external/stm32f4xx-hal-driver"]
+	path = firmware/external/stm32f4xx-hal-driver
 	url = https://github.com/STMicroelectronics/stm32f4xx-hal-driver.git
+[submodule "firmware/external/cmsis-device-f1"]
+	path = firmware/external/cmsis-device-f1
+	url = https://github.com/STMicroelectronics/cmsis-device-f1.git
+[submodule "firmware/external/stm32f1xx-hal-driver"]
+	path = firmware/external/stm32f1xx-hal-driver
+	url = https://github.com/STMicroelectronics/stm32f1xx-hal-driver.git
