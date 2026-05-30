@@ -280,7 +280,7 @@ def _find_mount_linux(address: UsbDeviceAddress) -> Path:
     if not sysfs_dev.exists():
         raise MscMountNotFoundError(f"USB device not in sysfs: {sysfs_dev}")
 
-    block_dirs = sorted(sysfs_dev.glob("*/host*/target*/*/*/block/*"))
+    block_dirs = sorted(sysfs_dev.glob("*/host*/target*/*/block/*"))
     if not block_dirs:
         raise MscMountNotFoundError(
             f"No block device found for USB device at {port_path}"
