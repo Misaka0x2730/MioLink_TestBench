@@ -73,7 +73,7 @@ jobs:
       # python3 and USB access. If its Python is externally managed (PEP 668),
       # pre-provision a venv on the runner and drop this step.
       - name: Install Python dependencies
-        run: python3 -m pip install --user -r scripts/requirements.txt
+        run: python3 -m pip install --break-system-packages -r scripts/requirements.txt
 
       - name: Build target fixtures
         run: ./build_all_test_firmware.sh --config config/bench_pi5.yaml
