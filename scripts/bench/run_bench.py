@@ -30,16 +30,15 @@ not flash the target — the target is expected to already run the
 ``cmake --build``, where ``<target_build_dir>`` is passed via
 ``--target-build-dir``).
 
-The .uf2 probe images are located by joining ``--probe-image-dir``
-with a ``--probe-image-pattern`` template. The template accepts
-``{board}`` (the value of ``build_target``, or ``auto_rp2040``) and
-``{flavour}`` (``debug`` / ``release``).
+The .uf2 probe images are located under ``--probe-image-dir`` by the
+fixed name ``MioLink-<board>-<flavour>.uf2``, where ``<board>`` is the
+``build_target`` (or ``auto_rp2040``) and ``<flavour>`` is ``debug`` /
+``release``.
 
 Example:
     python scripts/bench/run_bench.py \\
         --config config/bench_pi5.yaml \\
-        --probe-image-dir /path/to/probe-images \\
-        --probe-image-pattern "MioLink-{board}-{flavour}.uf2"
+        --probe-image-dir /path/to/probe-images
 """
 
 from __future__ import annotations
@@ -52,16 +51,29 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 # Sibling-package imports: run_bench lives in scripts/bench/ and needs
-# scripts/ on sys.path to import miolink/, gdb_bmp/, usb_helpers/, tests/.
+# scripts/ on sys.path to import miolink/, gdb_bmp/, usb_helpers/, tests/,
+# and scripts/bench/ itself for the sibling bench_config module.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from tests.buffer import bmp_buffer_test
 import gdb_bmp
 import miolink
 from usb_helpers import find_device
+
+# Bench YAML schema and firmware-variant derivation shared with the build
+# helpers (build_miolink.py / build_all_test_firmware.py).
+from bench_config import (
+    _AUTO_BUILD_TARGET,
+    BenchConfig,
+    BenchConnection,
+    BuildVariant,
+    load_bench_config,
+    resolve_uf2,
+    target_build_subdir,
+    variants_for,
+)
 
 # ── Constants ────────────────────────────────────────────────────────
 
@@ -69,29 +81,6 @@ _MIOLINK_VID = 0x1D50
 _MIOLINK_PID = 0x6018
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-
-_AUTO_BUILD_TARGET = "auto_rp2040"
-
-# Boards covered by the multi-board auto-detect firmware. Probes whose
-# `build_target` is in this set are also exercised with the auto build.
-_AUTO_RP2040_BOARDS = frozenset({"pico", "pico_w", "miolink", "miolink_pico"})
-
-# Build flavours always exercised per probe.
-_BUILD_FLAVOURS = ("debug", "release")
-
-# Allowed values for the YAML ``vtref`` field (target-power mode).
-_VTREF_MODES = frozenset({"self-powered", "powered", "not_supported"})
-
-# Allowed values for the YAML ``swo`` field (target SWO pin status).
-_SWO_STATES = frozenset({"connected", "not_present"})
-
-# Allowed values for the YAML ``cli`` list (CLI backend the test_board
-# fixture firmware must be built for).
-_CLI_MODES = frozenset({"uart", "rtt", "disabled"})
-
-# Maps a YAML ``cli`` value to the ``CONFIG_CLI`` CMake value the
-# test_board firmware expects (see firmware/CMakeLists.txt).
-_CLI_TO_CMAKE = {"uart": "UART", "rtt": "RTT", "disabled": "NONE"}
 
 # Buffer-fixture details mirrored from
 # MioLink_TestSetup/application/main.c. Keep in sync with the C source if
@@ -112,214 +101,6 @@ _BUFFER_OVERWRITE_SUFFIX = (
     ".Buffer Overwrite Test: Lorem ipsum dolor sit amet, consectetur "
     "adipiscing elit."
 )
-
-# ── YAML model ───────────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class BenchConnection:
-    """One physical probe ↔ target connection on the bench."""
-
-    probe: str
-    serial: str
-    build_target: str
-    hardware_version: int | None
-    part_number: str
-    platform: str
-    gdb_scan_name: str
-    vtref: str
-    swo: str
-    cli: tuple[str, ...]
-    interfaces: tuple[str, ...]
-    uart: str
-    reset_connected: bool
-    vtref_voltage: float | None = None
-    vtref_tolerance: float | None = None
-    tpwr_settle_sec: float | None = None
-    freq_hz: int | None = None
-    enabled: bool = True
-
-
-@dataclass(frozen=True)
-class BenchConfig:
-    """Top-level bench configuration as parsed from YAML."""
-
-    connections: tuple[BenchConnection, ...] = field(default_factory=tuple)
-
-
-def load_bench_config(path: Path) -> BenchConfig:
-    """Parse a bench YAML file into a :class:`BenchConfig`."""
-    with path.open("r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f) or {}
-
-    raw_connections = raw.get("connections", [])
-    if not isinstance(raw_connections, list) or not raw_connections:
-        raise ValueError(
-            f"{path}: 'connections' must be a non-empty list"
-        )
-
-    connections: list[BenchConnection] = []
-    for idx, entry in enumerate(raw_connections):
-        if not isinstance(entry, dict):
-            raise ValueError(
-                f"{path}: connection #{idx} is not a mapping"
-            )
-        missing = [
-            key for key in (
-                "probe", "serial", "build_target", "part_number",
-                "platform", "gdb_scan_name", "vtref", "swo", "cli",
-                "interfaces",
-            ) if key not in entry
-        ]
-        if missing:
-            raise ValueError(
-                f"{path}: connection #{idx} is missing required keys: "
-                f"{', '.join(missing)}"
-            )
-
-        ifaces = entry["interfaces"]
-        if not isinstance(ifaces, list) or not ifaces:
-            raise ValueError(
-                f"{path}: connection #{idx} 'interfaces' must be a "
-                f"non-empty list"
-            )
-
-        vtref_mode = str(entry["vtref"])
-        if vtref_mode not in _VTREF_MODES:
-            raise ValueError(
-                f"{path}: connection #{idx} 'vtref' must be one of "
-                f"{sorted(_VTREF_MODES)} (got '{vtref_mode}')"
-            )
-        vtref_voltage: float | None = None
-        vtref_tolerance: float | None = None
-        tpwr_settle_sec: float | None = None
-        if vtref_mode != "not_supported":
-            for required_field in ("vtref_voltage", "vtref_tolerance"):
-                if entry.get(required_field) is None:
-                    raise ValueError(
-                        f"{path}: connection #{idx} requires "
-                        f"'{required_field}' when 'vtref' is "
-                        f"'{vtref_mode}'"
-                    )
-            vtref_voltage = float(entry["vtref_voltage"])
-            vtref_tolerance = float(entry["vtref_tolerance"])
-        if vtref_mode == "powered":
-            if entry.get("tpwr_settle_sec") is None:
-                raise ValueError(
-                    f"{path}: connection #{idx} requires "
-                    f"'tpwr_settle_sec' when 'vtref' is 'powered'"
-                )
-            tpwr_settle_sec = float(entry["tpwr_settle_sec"])
-
-        swo_state = str(entry["swo"])
-        if swo_state not in _SWO_STATES:
-            raise ValueError(
-                f"{path}: connection #{idx} 'swo' must be one of "
-                f"{sorted(_SWO_STATES)} (got '{swo_state}')"
-            )
-
-        cli_raw = entry["cli"]
-        if not isinstance(cli_raw, list) or not cli_raw:
-            raise ValueError(
-                f"{path}: connection #{idx} 'cli' must be a non-empty list"
-            )
-        cli_modes = tuple(str(m) for m in cli_raw)
-        bad_modes = [m for m in cli_modes if m not in _CLI_MODES]
-        if bad_modes:
-            raise ValueError(
-                f"{path}: connection #{idx} 'cli' has invalid mode(s) "
-                f"{bad_modes}; allowed: {sorted(_CLI_MODES)}"
-            )
-        if len(set(cli_modes)) != len(cli_modes):
-            raise ValueError(
-                f"{path}: connection #{idx} 'cli' has duplicate entries"
-            )
-
-        freq_raw = entry.get("freq")
-        if freq_raw is None:
-            freq_hz: int | None = None
-        elif isinstance(freq_raw, str):
-            try:
-                freq_hz = gdb_bmp.parse_frequency(freq_raw)
-            except argparse.ArgumentTypeError as exc:
-                raise ValueError(
-                    f"{path}: connection #{idx} 'freq' invalid: {exc}"
-                ) from exc
-        else:
-            freq_hz = int(freq_raw)
-
-        connections.append(BenchConnection(
-            probe=str(entry["probe"]),
-            serial=str(entry["serial"]),
-            build_target=str(entry["build_target"]),
-            hardware_version=(
-                int(entry["hardware_version"])
-                if "hardware_version" in entry
-                and entry["hardware_version"] is not None
-                else None
-            ),
-            part_number=str(entry["part_number"]),
-            platform=str(entry["platform"]),
-            gdb_scan_name=str(entry["gdb_scan_name"]),
-            vtref=vtref_mode,
-            swo=swo_state,
-            cli=cli_modes,
-            vtref_voltage=vtref_voltage,
-            vtref_tolerance=vtref_tolerance,
-            tpwr_settle_sec=tpwr_settle_sec,
-            freq_hz=freq_hz,
-            interfaces=tuple(str(i) for i in ifaces),
-            uart=str(entry.get("uart", "main")),
-            reset_connected=bool(entry.get("reset_connected", False)),
-            enabled=bool(entry.get("enabled", True)),
-        ))
-
-    return BenchConfig(connections=tuple(connections))
-
-
-# ── Variants ─────────────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class BuildVariant:
-    """A specific firmware build to exercise on a probe."""
-
-    board: str       # PICO_BOARD value (e.g. "miolink", "auto_rp2040")
-    flavour: str     # "debug" or "release"
-
-    @property
-    def label(self) -> str:
-        return f"{self.board}/{self.flavour}"
-
-
-def variants_for(connection: BenchConnection) -> list[BuildVariant]:
-    """Enumerate firmware variants applicable to *connection*.
-
-    Always exercises the probe's individual board build in both Debug
-    and Release. Adds Debug + Release of the ``auto_rp2040`` multi-board
-    build whenever the probe's ``build_target`` is covered by that
-    firmware.
-    """
-    variants: list[BuildVariant] = []
-    for flavour in _BUILD_FLAVOURS:
-        variants.append(BuildVariant(connection.build_target, flavour))
-    if connection.build_target in _AUTO_RP2040_BOARDS:
-        for flavour in _BUILD_FLAVOURS:
-            variants.append(BuildVariant(_AUTO_BUILD_TARGET, flavour))
-    return variants
-
-
-def resolve_uf2(
-    probe_image_dir: Path,
-    probe_image_pattern: str,
-    variant: BuildVariant,
-) -> Path:
-    """Resolve a ``MioLink.uf2`` path for *variant* under *probe_image_dir*."""
-    relative = probe_image_pattern.format(
-        board=variant.board, flavour=variant.flavour,
-    )
-    return (probe_image_dir / relative).resolve()
-
 
 # ── Expected-probe matching ──────────────────────────────────────────
 
@@ -641,16 +422,6 @@ def _expected_overwrite(platform_name_string: str) -> bytes:
     )
 
 
-def target_build_subdir(cli_mode: str, swo_state: str) -> str:
-    """Return the per-(cli, swo) sub-directory name under target_build_dir.
-
-    ``build_bench.py`` configures one CMake build per ``(cli_mode,
-    swo_state)`` pair into this sub-directory; ``run_bench.py`` reads
-    the matching ``test_board_<platform>.elf`` back from it.
-    """
-    return f"cli-{cli_mode}_swo-{swo_state}"
-
-
 def _target_elf_path(
     connection: BenchConnection, build_dir: Path, cli_mode: str,
 ) -> Path:
@@ -950,16 +721,6 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--probe-image-pattern", type=str,
-        default="MioLink-{board}-{flavour}.uf2",
-        help=(
-            "Template for the probe image filename, joined with "
-            "--probe-image-dir. Placeholders: {board} (e.g. 'miolink', "
-            "'auto_rp2040'), {flavour} ('debug'/'release'). "
-            "Default: 'MioLink-{board}-{flavour}.uf2'."
-        ),
-    )
-    parser.add_argument(
         "--probe", type=str, default=None,
         help=(
             "Run only the probe whose USB serial matches this value. "
@@ -1087,7 +848,7 @@ def main() -> int:
             continue
         for variant in variants_for(connection):
             uf2_path = resolve_uf2(
-                args.probe_image_dir, args.probe_image_pattern, variant,
+                args.probe_image_dir, variant,
             )
             for cli_mode in connection.cli:
                 results.append(

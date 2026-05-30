@@ -1,0 +1,189 @@
+name: Build Test Firmware
+
+# Builds every firmware variant for every test-target platform and packages
+# the resulting ELF images into a single downloadable archive.
+#
+# Variant axes:
+#   platform   : stm32f030 (CM0), stm32f103 (CM3), stm32f401 (CM4), hc32f460 (CM4)
+#   CONFIG_CLI : UART, RTT, NONE
+#   SWO        : CONFIG_TEST_SWO OFF / ON  (ON skipped on stm32f030 - Cortex-M0
+#                has no ITM/TPIU and the platform raises a hard #error)
+#   build type : Debug, Release
+#
+# 4*3*2*2 = 48 combinations minus the 6 invalid stm32f030+SWO=ON cells = 42 builds.
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+  # Reusable: bench.yml calls this as the compile gate before HIL tests.
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same branch / PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Derive a single version string shared by every artifact name so the build
+  # matrix and the packaging job stay consistent.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        shell: bash
+        # On pull_request events GITHUB_SHA is the synthetic merge-commit SHA,
+        # which is exactly the tree actions/checkout builds - so the stamp stays
+        # consistent with what was actually compiled.
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ stm32f030, stm32f103, stm32f401, hc32f460 ]
+        cli: [ UART, RTT, NONE ]
+        # Quote ON/OFF so YAML keeps them as strings instead of booleans.
+        swo: [ "OFF", "ON" ]
+        build_type: [ Debug, Release ]
+        exclude:
+          # stm32f030 is Cortex-M0: no ITM/TPIU, platform.c raises #error on SWO.
+          - platform: stm32f030
+            swo: "ON"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Submodules carry CMSIS/HAL/RTT/embedded-cli; git history is not
+          # needed (the version stamp comes from runner env), so stay shallow.
+          submodules: recursive
+
+      - name: Setup arm-none-eabi-gcc
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '13.3.Rel1'
+
+      # The HC32F460 vendor SDK ships as a committed zip (not a submodule) and is
+      # extracted into the git-ignored firmware/external/hc32f460_ddl/ tree.
+      # Only the hc32f460 platform consumes it; stm32 configures tolerate its
+      # absence because the external libs glob into empty file lists.
+      - name: Extract HC32F460 DDL
+        if: matrix.platform == 'hc32f460'
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="firmware/external/hc32f460_ddl.zip"
+          dst="firmware/external/hc32f460_ddl"
+          if [ ! -f "$zip" ]; then
+            echo "error: $zip is missing (expected to be committed in the repo)" >&2
+            exit 1
+          fi
+          rm -rf "$dst"
+          mkdir -p "$dst"
+          unzip -q "$zip" -d "$dst"
+
+      - name: Configure
+        run: |
+          cmake -S firmware -B firmware/build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DPLATFORM=${{ matrix.platform }} \
+            -DCONFIG_CLI=${{ matrix.cli }} \
+            -DCONFIG_TEST_SWO=${{ matrix.swo }}
+
+      - name: Build
+        run: cmake --build firmware/build -j
+
+      - name: Stage ELF
+        shell: bash
+        run: |
+          set -euo pipefail
+          plat="${{ matrix.platform }}"
+          cli="$(printf '%s' "${{ matrix.cli }}" | tr '[:upper:]' '[:lower:]')"
+          swo="$(printf '%s' "${{ matrix.swo }}" | tr '[:upper:]' '[:lower:]')"
+          bt="$(printf '%s' "${{ matrix.build_type }}" | tr '[:upper:]' '[:lower:]')"
+          ver="${{ needs.version.outputs.version }}"
+          src="firmware/build/test_boards/test_board_${plat}/test_board_${plat}.elf"
+          name="test_board_${plat}_cli-${cli}_swo-${swo}_${bt}_${ver}.elf"
+          mkdir -p staging
+          cp "$src" "staging/${name}"
+          echo "Staged staging/${name}"
+
+      - name: Upload ELF
+        uses: actions/upload-artifact@v4
+        with:
+          # Unique per matrix cell; the version-stamped filename lives inside.
+          name: elf-${{ matrix.platform }}-${{ matrix.cli }}-swo${{ matrix.swo }}-${{ matrix.build_type }}
+          path: staging/*.elf
+          if-no-files-found: error
+          retention-days: 7
+
+  # Collect every per-variant ELF into one combined archive. Runs only if all
+  # matrix builds succeeded, so the archive is never silently incomplete.
+  package:
+    needs: [ version, build ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write  # allow best-effort deletion of the staging artifacts
+    steps:
+      - name: Download all ELF artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: collected
+          pattern: elf-*
+          merge-multiple: true
+
+      - name: List collected firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(find collected -name '*.elf' | wc -l | tr -d ' ')
+          echo "Collected ${count} ELF file(s):"
+          find collected -name '*.elf' -printf '  %f\n' | sort
+          if [ "$count" -eq 0 ]; then
+            echo "error: no ELF files collected" >&2
+            exit 1
+          fi
+
+      - name: Upload combined firmware archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: MioLink_TestSetup_firmware_${{ needs.version.outputs.version }}
+          path: collected/*.elf
+          if-no-files-found: error
+
+      # Best-effort: drop the per-variant staging artifacts now that they are
+      # merged into the combined archive, leaving one archive in the run UI.
+      # Never fails the run (e.g. read-only token on fork PRs just skips it).
+      - name: Prune staging artifacts
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              { owner, repo, run_id: context.runId, per_page: 100 },
+            );
+            for (const artifact of artifacts) {
+              if (artifact.name.startsWith('elf-')) {
+                await github.rest.actions.deleteArtifact(
+                  { owner, repo, artifact_id: artifact.id },
+                );
+                core.info(`deleted staging artifact: ${artifact.name}`);
+              }
+            }

@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 #
-# Build all bench firmware (MioLink probe + test_board fixtures) and
-# run the bench tests against the configuration in the bench YAML.
-#
-# Thin wrapper around scripts/bench/build_bench.py and
-# scripts/bench/run_bench.py with opinionated defaults so a typical run
+# Orchestrate the full bench workflow: build the MioLink probe images,
+# build the test_board fixtures, then run the bench tests. A typical run
 # boils down to:
 #
 #     ./run_bench.sh --miolink-firmware-root /path/to/MioLink/firmware
+#
+# This is a thin orchestrator that simply chains the three focused
+# scripts in order:
+#
+#   1. ./build_miolink.sh             (MioLink probe .uf2 images)
+#   2. ./build_all_test_firmware.sh   (test_board fixture firmware)
+#   3. ./run_bench_tests.sh           (flash + run tests)
+#
+# Run those directly if you only need one phase.
 #
 # Defaults (relative to the directory this script lives in):
 #   --config              config/bench_pi5.yaml
@@ -17,29 +23,23 @@
 #
 # Flags:
 #   --miolink-firmware-root PATH  external MioLink probe firmware tree
-#                                 (required for the build phase; also
+#                                 (required unless --run-only; also
 #                                 picked up from $MIOLINK_FIRMWARE_ROOT)
 #   --config PATH                 override the bench YAML
 #   --probe-image-dir PATH        override probe .uf2 staging dir
 #   --target-build-dir PATH       override test_board build dir
 #   --target-firmware-root PATH   override path to firmware/ in this repo
 #   --jobs N                      forwarded to `cmake --build -j N`
-#   --build-only                  run only build_bench.py
-#   --run-only                    run only run_bench.py
+#   --build-only                  run only the two build phases
+#   --run-only                    run only run_bench_tests.sh
 #   -h, --help                    show this help and exit
 #   --                            terminate option parsing; remaining
 #                                 arguments are forwarded verbatim to
-#                                 run_bench.py (e.g. --include-disabled,
-#                                 --no-target-flash, --probe SERIAL).
+#                                 run_bench_tests.sh (e.g.
+#                                 --include-disabled, --probe SERIAL).
 #
-# Before the build phase, if firmware/external/hc32f460_ddl.zip is
-# present, firmware/external/hc32f460_ddl is wiped and re-populated from
-# the archive, and the archive is then removed. This lets you drop a
-# fresh HC32F460 DDL release into firmware/external/ and have the next
-# build pick it up automatically.
-#
-# Exit codes: whatever build_bench.py / run_bench.py return. The script
-# stops at the first non-zero exit (set -e).
+# Exit codes: whatever the delegated scripts return. The script stops at
+# the first non-zero exit (set -e).
 
 set -euo pipefail
 
@@ -50,8 +50,6 @@ MIOLINK_FIRMWARE_ROOT="${MIOLINK_FIRMWARE_ROOT:-}"
 TARGET_FIRMWARE_ROOT="$SCRIPT_DIR/firmware"
 PROBE_IMAGE_DIR="$SCRIPT_DIR/build/probe-images"
 TARGET_BUILD_DIR="$SCRIPT_DIR/firmware/build"
-HC32F460_DDL_ZIP="$SCRIPT_DIR/firmware/external/hc32f460_ddl.zip"
-HC32F460_DDL_DIR="$SCRIPT_DIR/firmware/external/hc32f460_ddl"
 JOBS=""
 PHASE="all"  # all | build | run
 
@@ -105,35 +103,30 @@ if [[ -n "$JOBS" ]]; then
     JOBS_FLAG=(--jobs "$JOBS")
 fi
 
-if [[ "$PHASE" != "run" && -f "$HC32F460_DDL_ZIP" ]]; then
-    if ! command -v unzip >/dev/null 2>&1; then
-        echo "error: 'unzip' is required to extract $HC32F460_DDL_ZIP but was not found in PATH" >&2
-        exit 2
-    fi
-    echo "=== hc32f460_ddl: refresh vendor SDK from $(basename "$HC32F460_DDL_ZIP") ==="
-    rm -rf "$HC32F460_DDL_DIR"
-    mkdir -p "$HC32F460_DDL_DIR"
-    unzip -q "$HC32F460_DDL_ZIP" -d "$HC32F460_DDL_DIR"
-    rm -f "$HC32F460_DDL_ZIP"
-fi
-
 if [[ "$PHASE" != "run" ]]; then
-    echo "=== build_bench: build probe images + target fixtures ==="
-    python3 "$SCRIPT_DIR/scripts/bench/build_bench.py" \
+    "$SCRIPT_DIR/build_miolink.sh" \
         --config "$CONFIG" \
         --miolink-firmware-root "$MIOLINK_FIRMWARE_ROOT" \
-        --target-firmware-root "$TARGET_FIRMWARE_ROOT" \
         --probe-image-dir "$PROBE_IMAGE_DIR" \
+        ${JOBS_FLAG[@]+"${JOBS_FLAG[@]}"}
+
+    echo
+    "$SCRIPT_DIR/build_all_test_firmware.sh" \
+        --config "$CONFIG" \
+        --target-firmware-root "$TARGET_FIRMWARE_ROOT" \
         --target-build-dir "$TARGET_BUILD_DIR" \
         ${JOBS_FLAG[@]+"${JOBS_FLAG[@]}"}
 fi
 
 if [[ "$PHASE" != "build" ]]; then
+    declare -a FORWARD=()
+    if [[ ${#EXTRA_RUN_ARGS[@]} -gt 0 ]]; then
+        FORWARD=(-- "${EXTRA_RUN_ARGS[@]}")
+    fi
     echo
-    echo "=== run_bench: flash probes + targets, run tests ==="
-    python3 "$SCRIPT_DIR/scripts/bench/run_bench.py" \
+    "$SCRIPT_DIR/run_bench_tests.sh" \
         --config "$CONFIG" \
         --probe-image-dir "$PROBE_IMAGE_DIR" \
         --target-build-dir "$TARGET_BUILD_DIR" \
-        ${EXTRA_RUN_ARGS[@]+"${EXTRA_RUN_ARGS[@]}"}
+        ${FORWARD[@]+"${FORWARD[@]}"}
 fi

@@ -1,0 +1,106 @@
+name: HIL Bench
+
+# Triggered by MioLink's build pipeline (repository_dispatch) once it has built
+# the probe firmware, or manually. Runs the full target-firmware compile gate,
+# then the hardware-in-the-loop bench against the EXACT MioLink artifacts from
+# the triggering run (downloaded by run_id), and reports the result back on the
+# MioLink commit so it shows up in the PR.
+
+on:
+  repository_dispatch:
+    types: [ miolink-build ]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "MioLink build run_id to fetch probe firmware from"
+        required: true
+        type: string
+      sha:
+        description: "MioLink commit SHA to report bench status on (optional)"
+        required: false
+        type: string
+
+# actions:write lets the reusable compile gate prune its staging artifacts;
+# the bench/report jobs authenticate cross-repo with MIOLINK_BENCH_TOKEN instead.
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  # Full target-firmware compile gate (every platform x cli x swo x build type).
+  # Must pass before touching hardware.
+  compile-gate:
+    uses: ./.github/workflows/build-firmware.yml
+
+  bench:
+    needs: compile-gate
+    runs-on: [ self-hosted, miolink-bench ]
+    # One physical bench: queue runs instead of cancelling so concurrent
+    # MioLink changes don't fight over the hardware.
+    concurrency:
+      group: miolink-bench-hardware
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Resolve MioLink run id
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="${{ github.event.client_payload.run_id || inputs.run_id }}"
+          if [ -z "$run_id" ]; then
+            echo "error: no MioLink run_id (client_payload.run_id / inputs.run_id)" >&2
+            exit 1
+          fi
+          echo "MIOLINK_RUN_ID=$run_id" >> "$GITHUB_ENV"
+
+      # Cross-repo download of the exact .uf2 set this MioLink run produced.
+      # The artifact filenames already match the bench's fixed
+      # MioLink-<board>-<flavour>.uf2 name, so no renaming is needed.
+      - name: Download MioLink probe firmware
+        uses: actions/download-artifact@v4
+        with:
+          repository: Misaka0x2730/MioLink
+          run-id: ${{ env.MIOLINK_RUN_ID }}
+          github-token: ${{ secrets.MIOLINK_BENCH_TOKEN }}
+          pattern: MioLink-*
+          merge-multiple: true
+          path: build/probe-images
+
+      # The runner is expected to be provisioned with arm-none-eabi-gcc, cmake,
+      # python3 and USB access. If its Python is externally managed (PEP 668),
+      # pre-provision a venv on the runner and drop this step.
+      - name: Install Python dependencies
+        run: python3 -m pip install --user -r scripts/requirements.txt
+
+      - name: Build target fixtures
+        run: ./build_all_test_firmware.sh --config config/bench_pi5.yaml
+
+      - name: Run bench tests
+        run: |
+          ./run_bench_tests.sh \
+            --config config/bench_pi5.yaml \
+            --probe-image-dir build/probe-images \
+            --target-build-dir firmware/build
+
+  # Report the bench outcome on the MioLink commit (commit status; renders in
+  # the PR checks list). Runs even if the gate/bench failed or was skipped.
+  report:
+    needs: bench
+    if: always() && (github.event.client_payload.sha != '' || inputs.sha != '')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report bench status to MioLink
+        env:
+          GH_TOKEN: ${{ secrets.MIOLINK_BENCH_TOKEN }}
+          SHA: ${{ github.event.client_payload.sha || inputs.sha }}
+          STATE: ${{ needs.bench.result == 'success' && 'success' || 'failure' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/Misaka0x2730/MioLink/statuses/${SHA}" \
+              -f state="${STATE}" \
+              -f context=miolink-bench \
+              -f target_url="${RUN_URL}" \
+              -f description="HIL bench tests"
