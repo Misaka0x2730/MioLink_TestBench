@@ -1,10 +1,13 @@
 name: HIL Bench
 
 # Triggered by MioLink's build pipeline (repository_dispatch) once it has built
-# the probe firmware, or manually. Runs the full target-firmware compile gate,
-# then the hardware-in-the-loop bench against the EXACT MioLink artifacts from
-# the triggering run (downloaded by run_id), and reports the result back on the
-# MioLink commit so it shows up in the PR.
+# the probe firmware, or manually. Builds the test_board fixtures on a
+# GitHub-hosted runner, then runs the hardware-in-the-loop bench on the
+# self-hosted runner against the EXACT MioLink artifacts from the triggering
+# run (downloaded by run_id), and reports the result back on the MioLink commit.
+#
+# The self-hosted runner only flashes and tests (no compilation), so it can be
+# a low-powered board (e.g. Pi Zero 2W).
 
 on:
   repository_dispatch:
@@ -20,20 +23,48 @@ on:
         required: false
         type: string
 
-# actions:write lets the reusable compile gate prune its staging artifacts;
-# the bench/report jobs authenticate cross-repo with MIOLINK_BENCH_TOKEN instead.
 permissions:
   contents: read
-  actions: write
 
 jobs:
-  # Full target-firmware compile gate (every platform x cli x swo x build type).
-  # Must pass before touching hardware.
-  compile-gate:
-    uses: ./.github/workflows/build-firmware.yml
+  # Build the test_board fixtures on a GitHub-hosted runner, in the native
+  # run_bench.py layout (firmware/build/cli-X_swo-Y/test_boards/...), and ship
+  # the ELFs as an artifact so the self-hosted runner never has to compile.
+  build-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup arm-none-eabi-gcc
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '13.3.Rel1'
+
+      # Same script the bench used to run locally; it also auto-extracts the
+      # committed HC32F460 DDL zip when present.
+      - name: Build target fixtures
+        run: ./build_all_test_firmware.sh --config config/bench_pi5.yaml
+
+      # Pack only the .elf files, preserving the cli-X_swo-Y/test_boards/...
+      # structure run_bench.py reads back.
+      - name: Stage fixture ELFs
+        run: |
+          set -euo pipefail
+          cd firmware/build
+          find . -path '*/test_boards/*/*.elf' -print0 \
+            | tar --null -czf "$GITHUB_WORKSPACE/target-fixtures.tar.gz" --files-from -
+
+      - name: Upload target fixtures
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-fixtures
+          path: target-fixtures.tar.gz
+          if-no-files-found: error
 
   bench:
-    needs: compile-gate
+    needs: build-fixtures
     runs-on: [ self-hosted, miolink-bench ]
     # One physical bench: queue runs instead of cancelling so concurrent
     # MioLink changes don't fight over the hardware.
@@ -41,9 +72,9 @@ jobs:
       group: miolink-bench-hardware
       cancel-in-progress: false
     steps:
+      # No submodules: the runner only runs run_bench.py (pure scripts/),
+      # it does not compile anything.
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Resolve MioLink run id
         shell: bash
@@ -69,14 +100,24 @@ jobs:
           merge-multiple: true
           path: build/probe-images
 
-      # The runner is expected to be provisioned with arm-none-eabi-gcc, cmake,
-      # python3 and USB access. If its Python is externally managed (PEP 668),
-      # pre-provision a venv on the runner and drop this step.
+      # Fixtures built by build-fixtures (same workflow run); restore the
+      # firmware/build layout run_bench.py expects.
+      - name: Download target fixtures
+        uses: actions/download-artifact@v4
+        with:
+          name: target-fixtures
+          path: .
+
+      - name: Unpack target fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p firmware/build
+          tar -xzf target-fixtures.tar.gz -C firmware/build
+
+      # Runtime-only deps (no build toolchain). If the runner's Python is
+      # externally managed (PEP 668), pre-provision a venv and drop this step.
       - name: Install Python dependencies
         run: python3 -m pip install --break-system-packages -r scripts/requirements.txt
-
-      - name: Build target fixtures
-        run: ./build_all_test_firmware.sh --config config/bench_pi5.yaml
 
       - name: Run bench tests
         run: |
@@ -86,10 +127,12 @@ jobs:
             --target-build-dir firmware/build
 
   # Report the bench outcome on the MioLink commit (commit status; renders in
-  # the PR checks list). Runs even if the gate/bench failed or was skipped.
+  # the PR checks list). Always runs so a failed/skipped bench still resolves
+  # the pending status MioLink set; no-ops when there is no SHA to report on
+  # (e.g. a manual run without the sha input).
   report:
     needs: bench
-    if: always() && (github.event.client_payload.sha != '' || inputs.sha != '')
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Report bench status to MioLink
@@ -99,6 +142,11 @@ jobs:
           STATE: ${{ needs.bench.result == 'success' && 'success' || 'failure' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          set -euo pipefail
+          if [ -z "${SHA}" ]; then
+            echo "No MioLink SHA (manual run without 'sha' input); nothing to report."
+            exit 0
+          fi
           gh api "repos/Misaka0x2730/MioLink/statuses/${SHA}" \
               -f state="${STATE}" \
               -f context=miolink-bench \

@@ -18,8 +18,6 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-  # Reusable: bench.yml calls this as the compile gate before HIL tests.
-  workflow_call:
 
 permissions:
   contents: read
