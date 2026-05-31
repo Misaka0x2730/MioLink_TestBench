@@ -24,11 +24,13 @@ from pathlib import Path
 
 import yaml
 
-# Sibling-package import: bench_config lives in scripts/bench/ and needs
-# scripts/ on sys.path to import gdb_bmp/ for frequency parsing.
+# bench_config lives in scripts/bench/; put scripts/ on sys.path so the
+# dependency-free freq_parse helper resolves. We deliberately do NOT import
+# gdb_bmp here: it pulls in pygdbmi, which is only needed at run time on the
+# bench, not when building firmware from this config.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import gdb_bmp
+from freq_parse import parse_frequency
 
 # ── Constants ────────────────────────────────────────────────────────
 
@@ -188,7 +190,7 @@ def load_bench_config(path: Path) -> BenchConfig:
             freq_hz: int | None = None
         elif isinstance(freq_raw, str):
             try:
-                freq_hz = gdb_bmp.parse_frequency(freq_raw)
+                freq_hz = parse_frequency(freq_raw)
             except argparse.ArgumentTypeError as exc:
                 raise ValueError(
                     f"{path}: connection #{idx} 'freq' invalid: {exc}"

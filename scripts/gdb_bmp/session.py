@@ -38,6 +38,8 @@ from pathlib import Path
 
 from pygdbmi.gdbcontroller import GdbController
 
+from freq_parse import parse_frequency
+
 
 # ── Enums & data ─────────────────────────────────────────────────────
 
@@ -541,30 +543,6 @@ def _extract_error_msg(resp: dict) -> str:
 
 
 # ── CLI argument helpers ─────────────────────────────────────────────
-
-
-def parse_frequency(value: str) -> int:
-    """Parse a frequency CLI argument into Hz.
-
-    Accepts a non-negative integer with an optional ``k``/``K`` (×1000)
-    or ``M`` (×1_000_000) suffix. Examples: ``4000000``, ``4000k``,
-    ``4M``. Raises :class:`argparse.ArgumentTypeError` on bad input.
-    """
-    m = re.fullmatch(r"\s*(\d+)\s*([kKM]?)\s*", value)
-    if not m:
-        raise argparse.ArgumentTypeError(
-            f"invalid frequency '{value}' "
-            f"(expected integer Hz, optionally suffixed with k or M)"
-        )
-    hz = int(m.group(1))
-    suffix = m.group(2)
-    if suffix in ("k", "K"):
-        hz *= 1000
-    elif suffix == "M":
-        hz *= 1_000_000
-    if hz == 0:
-        raise argparse.ArgumentTypeError("frequency must be greater than 0")
-    return hz
 
 
 def add_target_arguments(parser: argparse.ArgumentParser) -> None:
