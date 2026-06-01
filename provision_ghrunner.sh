@@ -10,7 +10,7 @@
 #   * arm-none-eabi-gdb   — flashes the test targets over the BMP GDB/MI server
 #                           (from the ARM GNU Toolchain you point --toolchain-url at)
 #   * picotool (>= 2.0)   — acknowledged flashing of RP2 probes in BOOTSEL,
-#                           incl. RP2350 / Pico 2W (built from source)
+#                           incl. RP2350 / Pico 2W (Debian package, 2.1.1)
 #   * dfu-util            — detaches a running probe into BOOTSEL
 #   * python3 + libusb    — pyusb / pygdbmi / pyserial / PyYAML
 #   * udev rules + groups — raw-USB + /dev/ttyACM* access for an unprivileged
@@ -59,10 +59,6 @@ RUNNER_GROUP=""                      # only valid for org/enterprise runners
 RUNNER_ARCH=""                       # default: auto-detected
 
 TOOLCHAIN_PREFIX="/opt/arm-gnu-toolchain"
-PICO_SDK_DIR="/opt/pico-sdk"
-PICOTOOL_SRC="/opt/picotool"
-PICOTOOL_REF=""                      # empty -> default branch (tracks latest, RP2350-capable)
-PICO_SDK_REF=""                      # empty -> default branch
 
 usage() {
     sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'
@@ -84,8 +80,6 @@ Optional arguments:
   --runner-group NAME   Runner group (org/enterprise runners only; omitted otherwise).
   --runner-arch ARCH    Override runner arch: arm64 | arm (default: auto-detect).
   --toolchain-prefix D  Install prefix for the ARM toolchain (default: /opt/arm-gnu-toolchain).
-  --picotool-ref REF    picotool git ref/tag to build (default: repo default branch).
-  --pico-sdk-ref REF    pico-sdk git ref/tag for the picotool build (default: default branch).
   -h, --help            Show this help and exit.
 
 Notes:
@@ -113,8 +107,6 @@ while [[ $# -gt 0 ]]; do
         --runner-group)     RUNNER_GROUP="${2:?missing value for $1}"; shift 2 ;;
         --runner-arch)      RUNNER_ARCH="${2:?missing value for $1}"; shift 2 ;;
         --toolchain-prefix) TOOLCHAIN_PREFIX="${2:?missing value for $1}"; shift 2 ;;
-        --picotool-ref)     PICOTOOL_REF="${2:?missing value for $1}"; shift 2 ;;
-        --pico-sdk-ref)     PICO_SDK_REF="${2:?missing value for $1}"; shift 2 ;;
         -h|--help)          usage; exit 0 ;;
         *) die "unknown argument: $1 (run '$0 --help')" ;;
     esac
@@ -154,10 +146,11 @@ export DEBIAN_FRONTEND=noninteractive
 install_packages() {
     log "Installing base packages (apt)"
     apt-get update -y
+    # picotool 2.1.1 from Debian already supports RP2350 / Pico 2W (>= 2.0),
+    # so we install it from apt instead of building it on the Pi.
     apt-get install -y --no-install-recommends \
         ca-certificates curl wget git tar xz-utils unzip sudo usbutils \
-        build-essential cmake pkg-config \
-        libusb-1.0-0 libusb-1.0-0-dev dfu-util \
+        picotool libusb-1.0-0 dfu-util \
         python3 python3-pip python3-venv \
         libncursesw6
 }
@@ -273,36 +266,7 @@ ensure_gdb_runtime() {
     warn "gdb runnable here; install any remaining libs (e.g. a matching libpython/libncurses)."
 }
 
-# ── 4. picotool (>= 2.0, built from source for RP2350 support) ───────
-build_picotool() {
-    log "Building picotool from source (RP2350/Pico 2W support)"
-    rm -rf "$PICO_SDK_DIR" "$PICOTOOL_SRC"
-
-    local sdk_args=(--depth 1) ptool_args=(--depth 1)
-    [[ -n "$PICO_SDK_REF" ]] && sdk_args+=(--branch "$PICO_SDK_REF")
-    [[ -n "$PICOTOOL_REF" ]] && ptool_args+=(--branch "$PICOTOOL_REF")
-
-    # picotool needs the SDK tree (pico_usb_reset_interface headers, version
-    # info) but none of its submodules.
-    git clone "${sdk_args[@]}" https://github.com/raspberrypi/pico-sdk "$PICO_SDK_DIR"
-    git clone "${ptool_args[@]}" https://github.com/raspberrypi/picotool "$PICOTOOL_SRC"
-
-    cmake -S "$PICOTOOL_SRC" -B "$PICOTOOL_SRC/build" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DPICO_SDK_PATH="$PICO_SDK_DIR"
-    cmake --build "$PICOTOOL_SRC/build" -j"$(nproc)"
-    cmake --install "$PICOTOOL_SRC/build"      # -> /usr/local/bin/picotool
-    ldconfig
-
-    # Ship picotool's udev rules if the checkout provides them.
-    if [[ -f "$PICOTOOL_SRC/udev/99-picotool.rules" ]]; then
-        install -m 0644 "$PICOTOOL_SRC/udev/99-picotool.rules" /etc/udev/rules.d/99-picotool.rules
-    fi
-
-    command -v picotool >/dev/null 2>&1 || warn "picotool not on PATH after install"
-}
-
-# ── 5. udev rules for unprivileged hardware access ───────────────────
+# ── 4. udev rules for unprivileged hardware access ───────────────────
 install_udev_rules() {
     log "Installing udev rules for probe USB access (group plugdev / dialout)"
     cat > /etc/udev/rules.d/60-miolink-bench.rules <<'EOF'
@@ -320,7 +284,7 @@ EOF
     udevadm trigger || true
 }
 
-# ── 6. Python runtime deps (pre-warm; the workflow reinstalls per job) ─
+# ── 5. Python runtime deps (pre-warm; the workflow reinstalls per job) ─
 install_python_deps() {
     log "Pre-installing Python runtime dependencies (as $RUNNER_USER)"
     local home_dir
@@ -334,7 +298,7 @@ install_python_deps() {
         || warn "pip pre-install failed; the workflow installs these at job time anyway"
 }
 
-# ── 7. GitHub Actions runner: download, register, install as service ─
+# ── 6. GitHub Actions runner: download, register, install as service ─
 install_runner() {
     local home_dir runner_dir
     home_dir="$(getent passwd "$RUNNER_USER" | cut -d: -f6)"
@@ -410,7 +374,7 @@ install_runner() {
     RUNNER_DIR="$runner_dir"   # for the summary
 }
 
-# ── 8. Summary / verification ────────────────────────────────────────
+# ── 7. Summary / verification ────────────────────────────────────────
 summary() {
     log "Verification"
     printf '    arm-none-eabi-gdb : %s\n' "$("$TOOLCHAIN_PREFIX/bin/arm-none-eabi-gdb" --version 2>/dev/null | head -1 || echo 'FAILED')"
@@ -430,7 +394,6 @@ main() {
     install_packages
     create_user
     install_toolchain
-    build_picotool
     install_udev_rules
     install_python_deps
     install_runner
