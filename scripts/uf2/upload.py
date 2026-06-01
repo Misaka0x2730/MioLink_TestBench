@@ -80,7 +80,7 @@ def upload_uf2(
     dest = mount_point / uf2_path.name
 
     try:
-        shutil.copy(uf2_path, dest)
+        shutil.copyfile(uf2_path, dest)
     except OSError as e:
         raise Uf2UploadError(
             f"Failed to copy {uf2_path.name} to {mount_point}: {e}"
