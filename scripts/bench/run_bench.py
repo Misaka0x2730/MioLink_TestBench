@@ -510,7 +510,7 @@ def _run_variant(
         miolink.flash_miolink(
             serial=connection.serial,
             uf2_path=uf2_path,
-            msc_timeout_sec=args.miolink_flash_timeout,
+            bootsel_timeout_sec=args.miolink_flash_timeout,
         )
     except Exception as exc:
         msg = str(exc)
@@ -744,8 +744,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--miolink-flash-timeout", type=float, default=30.0,
         help=(
-            "Seconds to wait for the RP2040 MSC volume after DFU detach "
-            "(default: 30)."
+            "Seconds to wait for the RP2 BOOTSEL device after DFU detach "
+            "before picotool loads the image (default: 30)."
         ),
     )
     parser.add_argument(

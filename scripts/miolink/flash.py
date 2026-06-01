@@ -3,8 +3,13 @@
 Flashes a .uf2 firmware file to a MioLink device identified by its
 USB serial number. Orchestrates the full pipeline:
   1. Find MioLink on the bus by serial number
-  2. Send DFU_DETACH (device resets into RP2040 bootloader / USB MSC)
-  3. Upload .uf2 to the MSC volume (device reboots with new firmware)
+  2. Send DFU_DETACH (device resets into RP2040/RP2350 BOOTSEL bootloader)
+  3. Load the .uf2 via picotool over PICOBOOT (acknowledged + verified
+     writes, deterministic reboot into the new firmware)
+
+The .uf2 is intentionally NOT copied to the BOOTSEL MSC volume: that
+transfer is unacknowledged and an occasional dropped USB block leaves the
+device silently stuck in BOOTSEL (see picotool/load.py for details).
 
 Usage as module:
     from miolink import flash_miolink
@@ -35,11 +40,14 @@ from dfu.detach import (
     dfu_detach,
 )
 from uf2.upload import (
-    MscMountNotFoundError,
-    Uf2UploadError,
     Uf2ValidationError,
-    upload_uf2,
     validate_uf2,
+)
+from picotool.load import (
+    BootselDeviceNotFoundError,
+    PicotoolLoadError,
+    PicotoolNotFoundError,
+    picotool_load,
 )
 
 MIOLINK_VID = 0x1D50
@@ -49,15 +57,15 @@ MIOLINK_PID = 0x6018
 def flash_miolink(
     serial: str,
     uf2_path: str | Path,
-    msc_timeout_sec: float = 30.0,
+    bootsel_timeout_sec: float = 30.0,
 ) -> None:
     """Flash a MioLink device with a .uf2 firmware file.
 
     Args:
         serial: USB serial number of the target MioLink.
         uf2_path: Path to the .uf2 firmware file.
-        msc_timeout_sec: Max seconds to wait for the MSC volume
-                         to appear after DFU detach.
+        bootsel_timeout_sec: Max seconds to wait for the BOOTSEL device
+                             to appear after DFU detach.
 
     Raises:
         FileNotFoundError: The .uf2 file does not exist.
@@ -65,8 +73,9 @@ def flash_miolink(
         DeviceNotFoundError: MioLink with given serial not found.
         DfuUtilNotFoundError: dfu-util is not installed.
         DfuDetachError: DFU detach command failed.
-        MscMountNotFoundError: MSC volume did not appear in time.
-        Uf2UploadError: File copy to MSC volume failed.
+        PicotoolNotFoundError: picotool is not installed.
+        BootselDeviceNotFoundError: BOOTSEL device did not appear in time.
+        PicotoolLoadError: picotool failed to load the firmware.
     """
     uf2_path = Path(uf2_path)
     validate_uf2(uf2_path)
@@ -76,7 +85,7 @@ def flash_miolink(
     )
 
     dfu_detach(address)
-    upload_uf2(address, uf2_path, timeout_sec=msc_timeout_sec)
+    picotool_load(address, uf2_path, bootsel_timeout_sec=bootsel_timeout_sec)
 
 
 def main() -> int:
@@ -93,7 +102,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--timeout", type=float, default=30.0,
-        help="Seconds to wait for MSC volume after DFU detach (default: 30)",
+        help="Seconds to wait for the BOOTSEL device after DFU detach (default: 30)",
     )
 
     args = parser.parse_args()
@@ -115,11 +124,14 @@ def main() -> int:
     except DfuDetachError as e:
         print(f"Error: DFU detach failed: {e}", file=sys.stderr)
         return 1
-    except MscMountNotFoundError as e:
+    except PicotoolNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
-    except Uf2UploadError as e:
+    except BootselDeviceNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except PicotoolLoadError as e:
+        print(f"Error: picotool load failed: {e}", file=sys.stderr)
         return 1
 
     print(f"Successfully flashed {args.uf2_file.name} to MioLink ({args.serial})")
