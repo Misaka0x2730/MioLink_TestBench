@@ -52,11 +52,14 @@ from usb_helpers.find_device import (
     find_device_address,
 )
 
-# RP2040/RP2350 ROM bootloader (BOOTSEL) USB identity, shared by every RP2
-# chip. picotool talks to its PICOBOOT vendor interface; the MSC interface
-# (if mounted by the host) is irrelevant to this path.
+# RP2 ROM bootloader (BOOTSEL) USB identity. picotool talks to its PICOBOOT
+# vendor interface; the MSC interface (if mounted by the host) is irrelevant
+# to this path. The product ID differs per chip family:
+#   0x0003 - RP2040
+#   0x000F - RP2350 (e.g. Pico 2 / Pico 2W)
+# The RISC-V and ARM boot variants of the RP2350 share the same BOOTSEL PID.
 _RP2_BOOTSEL_VID = 0x2E8A
-_RP2_BOOTSEL_PID = 0x0003
+_RP2_BOOTSEL_PIDS = (0x0003, 0x000F)
 
 
 class PicotoolNotFoundError(Exception):
@@ -100,12 +103,14 @@ def _find_bootsel_address(port_path: str) -> UsbDeviceAddress | None:
 
     Returns None when no BOOTSEL device is present at *port_path*.
     """
-    try:
-        candidates = [find_device_address(_RP2_BOOTSEL_VID, _RP2_BOOTSEL_PID)]
-    except MultipleDevicesFoundError as exc:
-        candidates = exc.addresses
-    except DeviceNotFoundError:
-        return None
+    candidates: list[UsbDeviceAddress] = []
+    for pid in _RP2_BOOTSEL_PIDS:
+        try:
+            candidates.append(find_device_address(_RP2_BOOTSEL_VID, pid))
+        except MultipleDevicesFoundError as exc:
+            candidates.extend(exc.addresses)
+        except DeviceNotFoundError:
+            continue
 
     for candidate in candidates:
         if candidate.port_path == port_path:
@@ -221,9 +226,10 @@ def picotool_load(
                 # BOOTSEL: the load took. Treat the missing BOOTSEL device
                 # as success.
                 return
+            pids = "/".join(f"0x{pid:04X}" for pid in _RP2_BOOTSEL_PIDS)
             raise BootselDeviceNotFoundError(
                 f"no RP2 BOOTSEL device (VID=0x{_RP2_BOOTSEL_VID:04X}, "
-                f"PID=0x{_RP2_BOOTSEL_PID:04X}) at port {target_port} "
+                f"PID={pids}) at port {target_port} "
                 f"within {bootsel_timeout_sec:.0f}s after detach"
             )
 
