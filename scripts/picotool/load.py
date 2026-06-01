@@ -129,10 +129,31 @@ def _wait_for_bootsel(
         time.sleep(poll_interval_sec)
 
 
+def _wait_for_bootsel_gone(
+    port_path: str,
+    timeout_sec: float,
+    poll_interval_sec: float = 0.5,
+) -> bool:
+    """Poll until no BOOTSEL device remains at *port_path*.
+
+    Used after a load to confirm the device actually rebooted out of
+    BOOTSEL. Returns True if the BOOTSEL device disappeared within the
+    timeout, False if it is still there.
+    """
+    deadline = time.monotonic() + timeout_sec
+    while True:
+        if _find_bootsel_address(port_path) is None:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll_interval_sec)
+
+
 def picotool_load(
     address: UsbDeviceAddress,
     uf2_path: str | Path,
     bootsel_timeout_sec: float = 30.0,
+    reboot_timeout_sec: float = 5.0,
     attempts: int = 3,
     verify: bool = True,
     execute: bool = True,
@@ -142,14 +163,24 @@ def picotool_load(
     *address* is the address of the probe BEFORE detach; only its stable
     ``port_path`` is used to locate the post-detach BOOTSEL device.
 
+    Each attempt both runs ``picotool load`` and (when *execute*) confirms
+    the device actually left BOOTSEL afterwards. An attempt is retried if
+    picotool returns non-zero OR if picotool reports success but the device
+    is still in BOOTSEL after *reboot_timeout_sec* (the ``-x`` reboot did
+    not take). Retrying is safe and idempotent because a device still in
+    BOOTSEL has not run any new code.
+
     Args:
         address: USB address whose port_path identifies the target probe.
         uf2_path: Path to the firmware image (.uf2/.elf/.bin).
         bootsel_timeout_sec: Max seconds to wait for the BOOTSEL device to
                              appear after detach (first attempt).
-        attempts: Number of picotool load attempts before giving up. A
-                  failed load leaves the device in BOOTSEL, so retrying is
-                  safe and idempotent.
+        reboot_timeout_sec: Max seconds to wait, after a successful load,
+                            for the device to leave BOOTSEL before treating
+                            the attempt as failed and retrying. Ignored when
+                            *execute* is False (the device intentionally
+                            stays in BOOTSEL).
+        attempts: Number of load attempts before giving up.
         verify: Pass ``-v`` to verify the written data.
         execute: Pass ``-x`` to reboot into the application after loading.
 
@@ -158,7 +189,8 @@ def picotool_load(
         FileNotFoundError: The firmware file does not exist.
         ValueError: address has no usable port_path.
         BootselDeviceNotFoundError: No BOOTSEL device appeared in time.
-        PicotoolLoadError: Every picotool load attempt failed.
+        PicotoolLoadError: Every load attempt failed (or the device stayed
+            in BOOTSEL after every attempt).
     """
     picotool = _find_picotool()
 
@@ -208,16 +240,36 @@ def picotool_load(
 
         load_attempted = True
         result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
+
+        if result.returncode != 0:
+            last_error = PicotoolLoadError(
+                f"picotool load failed (exit code {result.returncode}) on "
+                f"attempt {attempt}/{attempts}: {result.stderr.strip()}",
+                returncode=result.returncode,
+                stderr=result.stderr.strip(),
+            )
+            # Failed load leaves the device in BOOTSEL; pause and retry.
+            time.sleep(1.0)
+            continue
+
+        # picotool reported success. Without -x the device intentionally
+        # stays in BOOTSEL, so there is nothing to confirm.
+        if not execute:
+            return
+
+        # With -x the device should reboot out of BOOTSEL. Confirm it
+        # actually left; if it is still there the reboot did not take, so
+        # retry the load rather than declaring a phantom success.
+        if _wait_for_bootsel_gone(target_port, reboot_timeout_sec):
             return
 
         last_error = PicotoolLoadError(
-            f"picotool load failed (exit code {result.returncode}) on "
-            f"attempt {attempt}/{attempts}: {result.stderr.strip()}",
-            returncode=result.returncode,
-            stderr=result.stderr.strip(),
+            f"picotool load reported success but the device is still in "
+            f"BOOTSEL {reboot_timeout_sec:.0f}s after load on attempt "
+            f"{attempt}/{attempts}",
+            returncode=0,
+            stderr="",
         )
-        # Failed load leaves the device in BOOTSEL; pause and retry.
         time.sleep(1.0)
 
     assert last_error is not None
@@ -254,6 +306,13 @@ def main() -> int:
         help="Seconds to wait for the BOOTSEL device (default: 30)",
     )
     parser.add_argument(
+        "--reboot-timeout", type=float, default=5.0,
+        help=(
+            "Seconds to confirm the device left BOOTSEL after a successful "
+            "load before retrying (default: 5)"
+        ),
+    )
+    parser.add_argument(
         "--attempts", type=int, default=3,
         help="picotool load attempts before failing (default: 3)",
     )
@@ -280,6 +339,7 @@ def main() -> int:
             address,
             args.uf2_file,
             bootsel_timeout_sec=args.timeout,
+            reboot_timeout_sec=args.reboot_timeout,
             attempts=args.attempts,
             verify=not args.no_verify,
             execute=not args.no_execute,
