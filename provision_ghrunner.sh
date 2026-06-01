@@ -179,15 +179,31 @@ create_user() {
 # ── 3. ARM GNU Toolchain (arm-none-eabi-gdb) ─────────────────────────
 install_toolchain() {
     log "Installing ARM GNU Toolchain from: $TOOLCHAIN_URL"
-    local tmp
-    tmp="$(mktemp -d)"
+    local dest_parent tmp
+    dest_parent="$(dirname "$TOOLCHAIN_PREFIX")"
+    mkdir -p "$dest_parent"
+    # Stage on the SAME persistent filesystem as the install prefix, NOT in
+    # /tmp: DietPi mounts /tmp as a RAM-backed tmpfs, and the uncompressed
+    # toolchain (~1.5 GiB) does not fit there on low-RAM boards (the classic
+    # "No space left on device" during extraction). Staging next to the prefix
+    # also turns the final install into a same-filesystem rename.
+    tmp="$(mktemp -d -p "$dest_parent" .arm-tc.XXXXXX)"
     # shellcheck disable=SC2064
     trap "rm -rf '$tmp'" RETURN
+
+    # Preflight: need room for the compressed tarball + the extracted tree.
+    local need_kib avail_kib
+    need_kib=$((2 * 1024 * 1024))   # ~2 GiB headroom
+    avail_kib="$(df -Pk "$tmp" | awk 'NR==2 {print $4}' || true)"
+    if [[ -n "$avail_kib" && "$avail_kib" -lt "$need_kib" ]]; then
+        die "only $((avail_kib / 1024)) MiB free on $dest_parent, the ARM toolchain needs ~2 GiB. Free space, or pass --toolchain-prefix on a larger volume (e.g. a mounted USB disk)."
+    fi
 
     curl -fL --retry 3 -o "$tmp/toolchain.tar" "$TOOLCHAIN_URL" \
         || die "failed to download toolchain from $TOOLCHAIN_URL"
     # GNU tar auto-detects xz/gz/bz2 compression.
     tar -xf "$tmp/toolchain.tar" -C "$tmp" || die "failed to extract toolchain tarball"
+    rm -f "$tmp/toolchain.tar"   # free the compressed archive before the move
 
     local gcc_bin toolchain_root
     # -print -quit stops at the first match itself (no 'find | head' SIGPIPE
@@ -197,8 +213,7 @@ install_toolchain() {
     toolchain_root="$(dirname "$(dirname "$gcc_bin")")"
 
     rm -rf "$TOOLCHAIN_PREFIX"
-    mkdir -p "$(dirname "$TOOLCHAIN_PREFIX")"
-    mv "$toolchain_root" "$TOOLCHAIN_PREFIX"
+    mv "$toolchain_root" "$TOOLCHAIN_PREFIX"   # same-filesystem rename (staged under dest_parent)
 
     # Symlink every cross tool into /usr/local/bin so it is on PATH for both
     # interactive shells and the systemd runner service.
