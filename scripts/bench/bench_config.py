@@ -18,19 +18,11 @@ agree on exactly one definition of:
 from __future__ import annotations
 
 import argparse
-import sys
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
-
-# bench_config lives in scripts/bench/; put scripts/ on sys.path so the
-# dependency-free freq_parse helper resolves. We deliberately do NOT import
-# gdb_bmp here: it pulls in pygdbmi, which is only needed at run time on the
-# bench, not when building firmware from this config.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from freq_parse import parse_frequency
 
 # ── Constants ────────────────────────────────────────────────────────
 
@@ -95,6 +87,30 @@ class BenchConfig:
     """Top-level bench configuration as parsed from YAML."""
 
     connections: tuple[BenchConnection, ...] = field(default_factory=tuple)
+
+
+def parse_frequency(value: str) -> int:
+    """Parse a frequency string into Hz.
+
+    Accepts a non-negative integer with an optional ``k``/``K`` (×1000)
+    or ``M`` (×1_000_000) suffix. Examples: ``4000000``, ``4000k``,
+    ``4M``. Raises :class:`argparse.ArgumentTypeError` on bad input.
+    """
+    m = re.fullmatch(r"\s*(\d+)\s*([kKM]?)\s*", value)
+    if not m:
+        raise argparse.ArgumentTypeError(
+            f"invalid frequency '{value}' "
+            f"(expected integer Hz, optionally suffixed with k or M)"
+        )
+    hz = int(m.group(1))
+    suffix = m.group(2)
+    if suffix in ("k", "K"):
+        hz *= 1000
+    elif suffix == "M":
+        hz *= 1_000_000
+    if hz == 0:
+        raise argparse.ArgumentTypeError("frequency must be greater than 0")
+    return hz
 
 
 def load_bench_config(path: Path) -> BenchConfig:
