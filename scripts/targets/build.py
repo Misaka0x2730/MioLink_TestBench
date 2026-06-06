@@ -1,8 +1,8 @@
-"""MioLink_TestSetup target firmware rebuild script.
+"""MioLink_TestBench target firmware rebuild script.
 
 Thin target-firmware wrapper around the shared
 :func:`build.cmake_build.cmake_rebuild` driver. Wipes a build directory,
-re-runs CMake configure for the MioLink_TestSetup source tree, builds
+re-runs CMake configure for the MioLink_TestBench source tree, builds
 ``test_board_<platform>`` for one or all platforms, and returns the
 path(s) to the produced ``.elf`` file(s).
 
@@ -16,7 +16,7 @@ Usage as module:
     from targets import build_target_firmware
 
     elf_paths = build_target_firmware(
-        firmware_root=Path("/path/to/MioLink_TestSetup/firmware"),
+        firmware_root=Path("/path/to/MioLink_TestBench/firmware"),
         platform="stm32f103",
         build_type="Debug",
     )
@@ -110,7 +110,7 @@ def build_target_firmware(
 
     Raises:
         FileNotFoundError: ``firmware_root`` is missing or doesn't look
-            like a MioLink_TestSetup CMake source tree.
+            like a MioLink_TestBench CMake source tree.
         BuildError: CMake configure or build returned a non-zero exit
             code, or expected ``.elf`` artefacts were not produced.
         ValueError: invalid *build_type*, unknown *platform*, or unsafe
@@ -128,7 +128,7 @@ def build_target_firmware(
     if not available:
         raise FileNotFoundError(
             f"no platforms found under {platforms_dir}; firmware_root "
-            f"does not look like a MioLink_TestSetup CMake source tree"
+            f"does not look like a MioLink_TestBench CMake source tree"
         )
 
     if platform is not None and platform not in available:
@@ -186,7 +186,7 @@ def _parse_define(value: str) -> tuple[str, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Rebuild the MioLink_TestSetup target firmware "
+            "Rebuild the MioLink_TestBench target firmware "
             "(test_board_<platform>) for one or all platforms."
         ),
     )

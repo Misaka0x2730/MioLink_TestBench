@@ -12,7 +12,7 @@ set(CMAKE_TOOLCHAIN_FILE			${CMAKE_CURRENT_LIST_DIR}/cmake/gcc-arm-none-eabi.cma
 set(CMAKE_C_COMPILER_FORCED TRUE)
 set(CMAKE_CXX_COMPILER_FORCED TRUE)
 
-project(MioLink_TestSetup)
+project(MioLink_TestBench)
 enable_language(C CXX ASM)
 
 # CLI backend selection. Choose one of:

@@ -70,7 +70,7 @@ Mandatory arguments:
   --token TOKEN         GitHub Actions runner registration token.
   --labels LABELS       Runner label(s), comma-separated (e.g. miolink-bench).
   --url URL             GitHub repo/org URL to register against
-                        (e.g. https://github.com/Misaka0x2730/MioLink_TestSetup).
+                        (e.g. https://github.com/Misaka0x2730/MioLink_TestBench).
 
 Optional arguments:
   --user NAME           Service user to create/use (default: ghrunner).

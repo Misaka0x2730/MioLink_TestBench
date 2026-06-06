@@ -6,7 +6,7 @@ re-runs CMake configure with the requested ``PICO_BOARD`` /
 ``CMAKE_BUILD_TYPE``, builds, and returns the path to ``MioLink.uf2``.
 
 The firmware source tree lives in a separate repository from
-MioLink_TestSetup; pass its path via ``--firmware-root`` or set the
+MioLink_TestBench; pass its path via ``--firmware-root`` or set the
 ``MIOLINK_FIRMWARE_ROOT`` environment variable.
 
 Usage as module:

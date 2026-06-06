@@ -1,4 +1,4 @@
-"""MioLink_TestSetup target-firmware build helpers.
+"""MioLink_TestBench target-firmware build helpers.
 
 Builds the ``test_board_<platform>`` fixture firmware that the bench
 runner loads onto each target MCU. Use this whenever you need fresh

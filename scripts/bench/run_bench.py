@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the MioLink_TestSetup test bench from a YAML configuration.
+"""Run the MioLink_TestBench test bench from a YAML configuration.
 
 Reads a bench configuration (default: ``config/bench_pi5.yaml``), and for
 each probe / target connection on the bench:
@@ -83,7 +83,7 @@ _MIOLINK_PID = 0x6018
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Buffer-fixture details mirrored from
-# MioLink_TestSetup/application/main.c. Keep in sync with the C source if
+# MioLink_TestBench/application/main.c. Keep in sync with the C source if
 # CONFIG_TEST_BUFFER_SIZE or the test strings change.
 _BUFFER_SIZE = 256
 
@@ -694,7 +694,7 @@ def _run_variant(
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the MioLink_TestSetup bench from a YAML configuration."
+            "Run the MioLink_TestBench bench from a YAML configuration."
         ),
     )
     parser.add_argument(

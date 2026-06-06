@@ -16,8 +16,8 @@ to ``run_bench.py`` so the runner finds the artefacts produced here.
 Usage:
     python scripts/build/build_all_test_firmware.py \\
         --config config/bench_pi5.yaml \\
-        --target-firmware-root /path/to/MioLink_TestSetup/firmware \\
-        --target-build-dir /path/to/MioLink_TestSetup/firmware/build
+        --target-firmware-root /path/to/MioLink_TestBench/firmware \\
+        --target-build-dir /path/to/MioLink_TestBench/firmware/build
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--target-firmware-root", type=Path, required=True,
         help=(
-            "Path to the MioLink_TestSetup local firmware source tree "
+            "Path to the MioLink_TestBench local firmware source tree "
             "(the directory containing the top-level CMakeLists.txt and "
             "platforms/)."
         ),

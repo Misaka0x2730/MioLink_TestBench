@@ -159,7 +159,7 @@ jobs:
       - name: Upload combined firmware archive
         uses: actions/upload-artifact@v4
         with:
-          name: MioLink_TestSetup_firmware_${{ needs.version.outputs.version }}
+          name: MioLink_TestBench_firmware_${{ needs.version.outputs.version }}
           path: collected/*.elf
           if-no-files-found: error
 

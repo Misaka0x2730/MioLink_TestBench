@@ -2,7 +2,7 @@
 
 Provides :func:`cmake_rebuild` — the shared core used by both
 ``scripts/miolink/build.py`` (MioLink probe firmware) and
-``scripts/targets/build.py`` (MioLink_TestSetup target firmware). It:
+``scripts/targets/build.py`` (MioLink_TestBench target firmware). It:
 
   1. Validates the source tree contains a top-level ``CMakeLists.txt``.
   2. Refuses to wipe dangerous directories (build_dir == source_dir,
