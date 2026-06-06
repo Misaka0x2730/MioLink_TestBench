@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "WeAct_MSPM0G3507_CoreBoard")(type "KiCad")(uri "${KIPRJMOD}/WeAct_MSPM0G3507_CoreBoard.pretty")(options "")(descr ""))
+)

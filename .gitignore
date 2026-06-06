@@ -21,3 +21,27 @@ firmware/external/hc32f460_ddl/
 
 # Ignore MacOS specific files
 .DS_Store
+
+# Ignore KiCad generated/temporary files in hardware projects
+hardware/**/*-backups/
+hardware/**/*.bak
+hardware/**/*.bck
+hardware/**/*.kicad_pcb-bak
+hardware/**/*.kicad_sch-bak
+hardware/**/*.sch-bak
+hardware/**/*-save.kicad_pcb
+hardware/**/*-save.pro
+hardware/**/_autosave-*
+hardware/**/*~
+hardware/**/*.000
+hardware/**/*.tmp
+hardware/**/*.lck
+
+# Ignore KiCad per-user local settings and caches (not project sources)
+hardware/**/*.kicad_prl
+hardware/**/fp-info-cache
+
+# Ignore KiCad exported netlists / BOM / autorouter files
+hardware/**/*.net
+hardware/**/*.dsn
+hardware/**/*.ses

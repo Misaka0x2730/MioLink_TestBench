@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "WeAct_STM32G0xxC0xx_CoreBoard")(type "KiCad")(uri "${KIPRJMOD}/WeAct_STM32G0xxC0xx_CoreBoard.pretty")(options "")(descr ""))
+)
