@@ -9,7 +9,7 @@
 #     ./build_miolink.sh --miolink-firmware-root /path/to/MioLink/firmware
 #
 # Defaults (relative to the directory this script lives in):
-#   --config            config/bench_pi5.yaml
+#   --config            config/bench_pizero2w.yaml
 #   --probe-image-dir   build/probe-images/
 #
 # Flags:
@@ -27,7 +27,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pi5.yaml"
+CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
 MIOLINK_FIRMWARE_ROOT="${MIOLINK_FIRMWARE_ROOT:-}"
 PROBE_IMAGE_DIR="$SCRIPT_DIR/build/probe-images"
 JOBS=""

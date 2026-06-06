@@ -10,7 +10,7 @@
 #     ./run_bench_tests.sh
 #
 # Defaults (relative to the directory this script lives in):
-#   --config            config/bench_pi5.yaml
+#   --config            config/bench_pizero2w.yaml
 #   --probe-image-dir   build/probe-images/
 #   --target-build-dir  firmware/build/
 #
@@ -30,7 +30,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pi5.yaml"
+CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
 PROBE_IMAGE_DIR="$SCRIPT_DIR/build/probe-images"
 TARGET_BUILD_DIR="$SCRIPT_DIR/firmware/build"
 

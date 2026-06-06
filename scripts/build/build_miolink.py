@@ -13,7 +13,7 @@ to ``run_bench.py`` so the runner finds the artefacts produced here.
 
 Usage:
     python scripts/build/build_miolink.py \\
-        --config config/bench_pi5.yaml \\
+        --config config/bench_pizero2w.yaml \\
         --miolink-firmware-root /path/to/MioLink/firmware \\
         --probe-image-dir /path/to/probe-images
 """

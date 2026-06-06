@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the MioLink_TestBench test bench from a YAML configuration.
 
-Reads a bench configuration (default: ``config/bench_pi5.yaml``), and for
+Reads a bench configuration (default: ``config/bench_pizero2w.yaml``), and for
 each probe / target connection on the bench:
 
   1. Selects every firmware variant to exercise — Debug and Release for
@@ -37,7 +37,7 @@ fixed name ``MioLink-<board>-<flavour>.uf2``, where ``<board>`` is the
 
 Example:
     python scripts/bench/run_bench.py \\
-        --config config/bench_pi5.yaml \\
+        --config config/bench_pizero2w.yaml \\
         --probe-image-dir /path/to/probe-images
 """
 
@@ -699,10 +699,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--config", type=Path,
-        default=_REPO_ROOT / "config" / "bench_pi5.yaml",
+        default=_REPO_ROOT / "config" / "bench_pizero2w.yaml",
         help=(
             "Path to the bench YAML config "
-            "(default: config/bench_pi5.yaml)."
+            "(default: config/bench_pizero2w.yaml)."
         ),
     )
     parser.add_argument(

@@ -9,7 +9,7 @@
 #     ./build_all_test_firmware.sh
 #
 # Defaults (relative to the directory this script lives in):
-#   --config              config/bench_pi5.yaml
+#   --config              config/bench_pizero2w.yaml
 #   --target-firmware-root  firmware/
 #   --target-build-dir    firmware/build/
 #
@@ -33,7 +33,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pi5.yaml"
+CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
 TARGET_FIRMWARE_ROOT="$SCRIPT_DIR/firmware"
 TARGET_BUILD_DIR="$SCRIPT_DIR/firmware/build"
 HC32F460_DDL_ZIP="$SCRIPT_DIR/firmware/external/hc32f460_ddl.zip"

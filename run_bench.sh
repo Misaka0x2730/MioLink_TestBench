@@ -16,7 +16,7 @@
 # Run those directly if you only need one phase.
 #
 # Defaults (relative to the directory this script lives in):
-#   --config              config/bench_pi5.yaml
+#   --config              config/bench_pizero2w.yaml
 #   --target-firmware-root  firmware/
 #   --probe-image-dir     build/probe-images/
 #   --target-build-dir    firmware/build/
@@ -45,7 +45,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pi5.yaml"
+CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
 MIOLINK_FIRMWARE_ROOT="${MIOLINK_FIRMWARE_ROOT:-}"
 TARGET_FIRMWARE_ROOT="$SCRIPT_DIR/firmware"
 PROBE_IMAGE_DIR="$SCRIPT_DIR/build/probe-images"

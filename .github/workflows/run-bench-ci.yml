@@ -45,7 +45,7 @@ jobs:
       # Same script the bench used to run locally; it also auto-extracts the
       # committed HC32F460 DDL zip when present.
       - name: Build target fixtures
-        run: ./build_all_test_firmware.sh --config config/bench_pi5.yaml
+        run: ./build_all_test_firmware.sh --config config/bench_pizero2w.yaml
 
       # Pack only the .elf files, preserving the cli-X_swo-Y/test_boards/...
       # structure run_bench.py reads back.
@@ -122,7 +122,7 @@ jobs:
       - name: Run bench tests
         run: |
           ./run_bench_tests.sh \
-            --config config/bench_pi5.yaml \
+            --config config/bench_pizero2w.yaml \
             --probe-image-dir build/probe-images \
             --target-build-dir firmware/build
 
