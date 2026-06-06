@@ -1,4 +1,4 @@
-name: HIL Bench
+name: Run Bench CI
 
 # Triggered by MioLink's build pipeline (repository_dispatch) once it has built
 # the probe firmware, or manually. Builds the test_board fixtures on a

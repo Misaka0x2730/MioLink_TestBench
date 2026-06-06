@@ -1,4 +1,4 @@
-name: Build Test Firmware
+name: Build Test Firmware CI
 
 # Builds every firmware variant for every test-target platform and packages
 # the resulting ELF images into a single downloadable archive.
