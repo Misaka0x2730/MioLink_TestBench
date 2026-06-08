@@ -4,11 +4,11 @@ Finds a USB device by VID, PID, and serial number descriptor,
 returns its bus address for further programmatic use.
 
 Usage as module:
-    from usb_helpers.find_device import find_device_address
+    from usbutil.find_device import find_device_address
     addr = find_device_address(vid=0x1D50, pid=0x6018, serial="XXXX")
 
 Usage as CLI:
-    python usb_helpers/find_device.py --vid 0x1D50 --pid 0x6018 --serial XXXX
+    python usbutil/find_device.py --vid 0x1D50 --pid 0x6018 --serial XXXX
 """
 
 from __future__ import annotations

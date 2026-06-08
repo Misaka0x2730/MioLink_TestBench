@@ -2,14 +2,14 @@
 #
 # Flash the staged probe images + run the bench tests against the
 # configuration in the bench YAML. Does not build anything: run
-# build_miolink.sh and build_all_test_firmware.sh first.
+# scripts/miolink_build_all.sh and scripts/targets_build_all.sh first.
 #
 # Thin wrapper around scripts/bench/run_bench.py with opinionated
 # defaults so a typical run boils down to:
 #
-#     ./run_bench_tests.sh
+#     ./scripts/bench_run_tests_only.sh
 #
-# Defaults (relative to the directory this script lives in):
+# Defaults (relative to the repo root):
 #   --config            config/bench_pizero2w.yaml
 #   --probe-image-dir   build/probe-images/
 #   --target-build-dir  firmware/build/
@@ -29,10 +29,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
-PROBE_IMAGE_DIR="$SCRIPT_DIR/build/probe-images"
-TARGET_BUILD_DIR="$SCRIPT_DIR/firmware/build"
+CONFIG="$REPO_ROOT/config/bench_pizero2w.yaml"
+PROBE_IMAGE_DIR="$REPO_ROOT/build/probe-images"
+TARGET_BUILD_DIR="$REPO_ROOT/firmware/build"
 
 declare -a EXTRA_RUN_ARGS=()
 
@@ -65,7 +66,7 @@ if [[ ! -f "$CONFIG" ]]; then
 fi
 
 echo "=== run_bench_tests: flash probes + targets, run tests ==="
-python3 "$SCRIPT_DIR/scripts/bench/run_bench.py" \
+python3 "$SCRIPT_DIR/bench/run_bench.py" \
     --config "$CONFIG" \
     --probe-image-dir "$PROBE_IMAGE_DIR" \
     --target-build-dir "$TARGET_BUILD_DIR" \

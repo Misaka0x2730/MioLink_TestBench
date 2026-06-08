@@ -3,8 +3,8 @@
 
 Parsing of the bench YAML and the rules that turn a parsed
 :class:`BenchConfig` into the set of firmware artefacts the bench needs
-live here so the build helpers (``build_miolink.py``,
-``build_all_test_firmware.py``) and the test runner (``run_bench.py``)
+live here so the build helpers (``miolink/build_all.py``,
+``targets/build_all.py``) and the test runner (``run_bench.py``)
 agree on exactly one definition of:
 
   * the YAML schema (:class:`BenchConnection`, :class:`BenchConfig`,
@@ -36,7 +36,7 @@ _AUTO_RP2040_BOARDS = frozenset({"pico", "pico_w", "miolink", "miolink_pico"})
 _BUILD_FLAVOURS = ("debug", "release")
 
 # Fixed filename for staged MioLink probe images. The build helper
-# (build_miolink.py) and the runner (run_bench.py) both resolve probe
+# (miolink/build_all.py) and the runner (run_bench.py) both resolve probe
 # .uf2 paths through resolve_uf2(), so the name is defined once here and
 # matches the artifact names produced by the MioLink build pipeline.
 _PROBE_IMAGE_FILENAME = "MioLink-{board}-{flavour}.uf2"
@@ -54,6 +54,10 @@ _CLI_MODES = frozenset({"uart", "rtt", "disabled"})
 # Maps a YAML ``cli`` value to the ``CONFIG_CLI`` CMake value the
 # test_board firmware expects (see firmware/CMakeLists.txt).
 _CLI_TO_CMAKE = {"uart": "UART", "rtt": "RTT", "disabled": "NONE"}
+
+# Maps a YAML ``swo`` state to the ``CONFIG_TEST_SWO`` CMake value that
+# enables / disables the periodic SWO trace output in the test_board fixture.
+_SWO_TO_CMAKE = {"connected": "ON", "not_present": "OFF"}
 
 # ── YAML model ───────────────────────────────────────────────────────
 
@@ -296,7 +300,7 @@ def resolve_uf2(
 def target_build_subdir(cli_mode: str, swo_state: str) -> str:
     """Return the per-(cli, swo) sub-directory name under target_build_dir.
 
-    ``build_all_test_firmware.py`` configures one CMake build per
+    ``targets/build_all.py`` configures one CMake build per
     ``(cli_mode, swo_state)`` pair into this sub-directory; ``run_bench.py``
     reads the matching ``test_board_<platform>.elf`` back from it.
     """

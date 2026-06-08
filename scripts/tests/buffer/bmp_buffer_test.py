@@ -13,7 +13,7 @@ and performs buffer value tests. Two test types are supported:
     Proves the buffer already holds the expected data.
 
 Usage as module:
-    from gdb_bmp import BmpTargetConfig
+    from targets.gdb import BmpTargetConfig
     from tests.buffer.bmp_buffer_test import (
         run_buffer_test, BufferTestConfig, TestType,
     )
@@ -45,11 +45,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-# Allow `from gdb_bmp.session import ...` whether this file is run as a
+# Allow `from targets.gdb.session import ...` whether this file is run as a
 # standalone CLI or imported as `tests.buffer.bmp_buffer_test` from another script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from gdb_bmp.session import (
+from targets.gdb.session import (
     BmpError,
     BmpSession,
     BmpTargetConfig,

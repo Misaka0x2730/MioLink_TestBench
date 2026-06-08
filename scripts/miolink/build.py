@@ -1,7 +1,7 @@
 """MioLink firmware rebuild script.
 
 Thin MioLink-specific wrapper around the shared
-:func:`build.cmake_build.cmake_rebuild` driver. Wipes a build directory,
+:func:`cmake.cmake_build.cmake_rebuild` driver. Wipes a build directory,
 re-runs CMake configure with the requested ``PICO_BOARD`` /
 ``CMAKE_BUILD_TYPE``, builds, and returns the path to ``MioLink.uf2``.
 
@@ -30,11 +30,11 @@ import os
 import sys
 from pathlib import Path
 
-# Allow `from build.cmake_build import ...` whether this file is run
+# Allow `from cmake.cmake_build import ...` whether this file is run
 # as a standalone CLI or imported as `miolink.build` from another script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from build.cmake_build import BuildError, cmake_rebuild, positive_int
+from cmake.cmake_build import BuildError, cmake_rebuild, positive_int
 
 # ── Constants ────────────────────────────────────────────────────────
 

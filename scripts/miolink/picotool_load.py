@@ -4,7 +4,7 @@ Loads a firmware image (.uf2/.elf/.bin) onto an RP2040/RP2350 device that
 is already in BOOTSEL mode, using ``picotool`` over the PICOBOOT vendor
 interface.
 
-Why this instead of uf2/upload.py: the USB-MSC drag-and-drop path writes
+Why picotool instead of the USB-MSC drag-and-drop path: the latter writes
 the .uf2 to a FAT volume and the RP2 bootrom reboots once it has counted
 all UF2 blocks, but the transfer is unacknowledged. If a single MSC block
 write is dropped/reordered under USB-hub contention the bootrom never
@@ -14,22 +14,22 @@ verifiable writes and deterministically reboots into the freshly flashed
 application, which removes that failure mode (observed mostly on RP2350 /
 Pico 2W, but the mechanism is common to all RP2 boards).
 
-The device must already be in BOOTSEL (e.g. after dfu/detach.py). This
+The device must already be in BOOTSEL (e.g. after dfu_detach.py). This
 module does NOT reset a running device into BOOTSEL: MioLink exposes a
 DFU-runtime detach, not picotool's reset interface, so picotool's
 ``--force`` is intentionally not used.
 
 Usage as module:
-    from usb_helpers.find_device import find_device_address
-    from dfu.detach import dfu_detach
-    from picotool.load import picotool_load
+    from usbutil.find_device import find_device_address
+    from miolink.dfu_detach import dfu_detach
+    from miolink.picotool_load import picotool_load
 
     addr = find_device_address(vid=0x1D50, pid=0x6018, serial="XXXX")
     dfu_detach(addr)                 # running app -> BOOTSEL
     picotool_load(addr, "firmware.uf2")
 
 Usage as CLI:
-    python picotool/load.py --path 1-1.3.4 firmware.uf2
+    python miolink/picotool_load.py --path 1-1.3.4 firmware.uf2
 """
 
 from __future__ import annotations
@@ -41,11 +41,11 @@ import sys
 import time
 from pathlib import Path
 
-# Allow `from usb_helpers.find_device import ...` whether this file is
-# run as a standalone CLI or imported as `picotool.load` from another script.
+# Allow `from usbutil.find_device import ...` whether this file is
+# run as a standalone CLI or imported as `miolink.picotool_load` from another script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from usb_helpers.find_device import (
+from usbutil.find_device import (
     DeviceNotFoundError,
     MultipleDevicesFoundError,
     UsbDeviceAddress,

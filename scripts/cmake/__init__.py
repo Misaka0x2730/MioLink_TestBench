@@ -6,8 +6,8 @@ Modules:
     and assert expected artefacts exist.
 
 Public symbols are re-exported here so callers can write
-`from build import cmake_rebuild` or
-`import build; build.cmake_rebuild(...)`.
+`from cmake import cmake_rebuild` or
+`import cmake; cmake.cmake_rebuild(...)`.
 """
 
 from .cmake_build import (

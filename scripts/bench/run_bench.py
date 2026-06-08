@@ -22,8 +22,8 @@ each probe / target connection on the bench:
   4. Runs the smoke buffer tests (verify_only + write_and_verify) over
      each debug interface that the slot wires up (SWD and/or JTAG).
 
-The script reuses sibling packages from ``scripts/``: ``gdb_bmp``,
-``miolink``, ``tests.buffer.bmp_buffer_test``, ``usb_helpers``. It does
+The script reuses sibling packages from ``scripts/``: ``targets.gdb``,
+``miolink``, ``tests.buffer.bmp_buffer_test``, ``usbutil``. It does
 not flash the target — the target is expected to already run the
 ``test_board_<platform>`` fixture firmware built from this repository
 (see ``<target_build_dir>/test_boards/test_board_<platform>/`` after
@@ -52,18 +52,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Sibling-package imports: run_bench lives in scripts/bench/ and needs
-# scripts/ on sys.path to import miolink/, gdb_bmp/, usb_helpers/, tests/,
-# and scripts/bench/ itself for the sibling bench_config module.
+# scripts/ on sys.path to import miolink/, usbutil/, targets/ (incl.
+# targets.gdb) and tests/, plus scripts/bench/ itself for the sibling
+# bench_config module.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from tests.buffer import bmp_buffer_test
-import gdb_bmp
+from targets import gdb
 import miolink
-from usb_helpers import find_device
+from usbutil import find_device
 
 # Bench YAML schema and firmware-variant derivation shared with the build
-# helpers (build_miolink.py / build_all_test_firmware.py).
+# helpers (miolink/build_all.py / targets/build_all.py).
 from bench_config import (
     _AUTO_BUILD_TARGET,
     BenchConfig,
@@ -436,13 +437,13 @@ def _make_target_config(
     elf_path: Path,
     iface: str,
     gdb_executable: str,
-) -> gdb_bmp.BmpTargetConfig:
-    """Build a :class:`gdb_bmp.BmpTargetConfig` from per-connection YAML."""
+) -> gdb.BmpTargetConfig:
+    """Build a :class:`gdb.BmpTargetConfig` from per-connection YAML."""
     kwargs: dict[str, object] = dict(
         gdb_port=gdb_port,
         elf_path=elf_path,
         target_name=connection.gdb_scan_name,
-        interface=gdb_bmp.ScanInterface(iface),
+        interface=gdb.ScanInterface(iface),
         connect_under_reset=connection.reset_connected,
         gdb_executable=gdb_executable,
         expected_vtref=connection.vtref_voltage,
@@ -450,7 +451,7 @@ def _make_target_config(
     )
     if connection.vtref_tolerance is not None:
         kwargs["vtref_tolerance"] = connection.vtref_tolerance
-    return gdb_bmp.BmpTargetConfig(**kwargs)
+    return gdb.BmpTargetConfig(**kwargs)
 
 
 # ── Test runner ──────────────────────────────────────────────────────
@@ -635,12 +636,12 @@ def _run_variant(
             connection, ports.gdb, elf_path, flash_iface,
             args.gdb_executable,
         )
-        flash_cfg = gdb_bmp.BmpFlashConfig(
+        flash_cfg = gdb.BmpFlashConfig(
             mass_erase=not args.no_target_mass_erase,
             verify=not args.no_target_verify,
         )
         try:
-            gdb_bmp.flash_target(flash_target_config, flash_cfg)
+            gdb.flash_target(flash_target_config, flash_cfg)
         except Exception as exc:
             msg = str(exc)
             print(f"FAIL {label}: {msg}", file=sys.stderr)

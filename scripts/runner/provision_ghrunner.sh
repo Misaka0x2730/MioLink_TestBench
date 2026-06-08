@@ -21,7 +21,7 @@
 #
 # Run on the Pi as root (the script re-execs itself with sudo if needed):
 #
-#   sudo ./provision_ghrunner.sh \
+#   sudo ./scripts/runner/provision_ghrunner.sh \
 #       --toolchain-url <ARM_GNU_TOOLCHAIN_TARBALL_URL> \
 #       --token         <GITHUB_RUNNER_REGISTRATION_TOKEN> \
 #       --labels        <RUNNER_LABEL[,LABEL...]> \

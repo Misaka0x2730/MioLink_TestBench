@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
 # Build every MioLink probe firmware variant referenced by the bench YAML
-# and stage the resulting MioLink.uf2 images for run_bench_tests.sh.
+# and stage the resulting MioLink.uf2 images for bench_run_tests_only.sh.
 #
-# Thin wrapper around scripts/build/build_miolink.py with opinionated
+# Thin wrapper around scripts/miolink/build_all.py with opinionated
 # defaults so a typical run boils down to:
 #
-#     ./build_miolink.sh --miolink-firmware-root /path/to/MioLink/firmware
+#     ./scripts/miolink_build_all.sh --miolink-firmware-root /path/to/MioLink/firmware
 #
-# Defaults (relative to the directory this script lives in):
+# Defaults (relative to the repo root):
 #   --config            config/bench_pizero2w.yaml
 #   --probe-image-dir   build/probe-images/
 #
@@ -21,15 +21,16 @@
 #   --jobs N                      forwarded to `cmake --build -j N`
 #   -h, --help                    show this help and exit
 #
-# Exit code: whatever build_miolink.py returns (stops at first error).
+# Exit code: whatever build_all.py returns (stops at first error).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
+CONFIG="$REPO_ROOT/config/bench_pizero2w.yaml"
 MIOLINK_FIRMWARE_ROOT="${MIOLINK_FIRMWARE_ROOT:-}"
-PROBE_IMAGE_DIR="$SCRIPT_DIR/build/probe-images"
+PROBE_IMAGE_DIR="$REPO_ROOT/build/probe-images"
 JOBS=""
 
 usage() {
@@ -70,8 +71,8 @@ if [[ -n "$JOBS" ]]; then
     JOBS_FLAG=(--jobs "$JOBS")
 fi
 
-echo "=== build_miolink: build MioLink probe images ==="
-python3 "$SCRIPT_DIR/scripts/build/build_miolink.py" \
+echo "=== build_all: build MioLink probe images ==="
+python3 "$SCRIPT_DIR/miolink/build_all.py" \
     --config "$CONFIG" \
     --miolink-firmware-root "$MIOLINK_FIRMWARE_ROOT" \
     --probe-image-dir "$PROBE_IMAGE_DIR" \

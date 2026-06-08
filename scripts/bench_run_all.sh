@@ -4,18 +4,18 @@
 # build the test_board fixtures, then run the bench tests. A typical run
 # boils down to:
 #
-#     ./run_bench.sh --miolink-firmware-root /path/to/MioLink/firmware
+#     ./scripts/bench_run_all.sh --miolink-firmware-root /path/to/MioLink/firmware
 #
 # This is a thin orchestrator that simply chains the three focused
 # scripts in order:
 #
-#   1. ./build_miolink.sh             (MioLink probe .uf2 images)
-#   2. ./build_all_test_firmware.sh   (test_board fixture firmware)
-#   3. ./run_bench_tests.sh           (flash + run tests)
+#   1. scripts/miolink_build_all.sh      (MioLink probe .uf2 images)
+#   2. scripts/targets_build_all.sh      (test_board fixture firmware)
+#   3. scripts/bench_run_tests_only.sh   (flash + run tests)
 #
 # Run those directly if you only need one phase.
 #
-# Defaults (relative to the directory this script lives in):
+# Defaults (relative to the repo root):
 #   --config              config/bench_pizero2w.yaml
 #   --target-firmware-root  firmware/
 #   --probe-image-dir     build/probe-images/
@@ -31,11 +31,11 @@
 #   --target-firmware-root PATH   override path to firmware/ in this repo
 #   --jobs N                      forwarded to `cmake --build -j N`
 #   --build-only                  run only the two build phases
-#   --run-only                    run only run_bench_tests.sh
+#   --run-only                    run only bench_run_tests_only.sh
 #   -h, --help                    show this help and exit
 #   --                            terminate option parsing; remaining
 #                                 arguments are forwarded verbatim to
-#                                 run_bench_tests.sh (e.g.
+#                                 bench_run_tests_only.sh (e.g.
 #                                 --include-disabled, --probe SERIAL).
 #
 # Exit codes: whatever the delegated scripts return. The script stops at
@@ -44,12 +44,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
+CONFIG="$REPO_ROOT/config/bench_pizero2w.yaml"
 MIOLINK_FIRMWARE_ROOT="${MIOLINK_FIRMWARE_ROOT:-}"
-TARGET_FIRMWARE_ROOT="$SCRIPT_DIR/firmware"
-PROBE_IMAGE_DIR="$SCRIPT_DIR/build/probe-images"
-TARGET_BUILD_DIR="$SCRIPT_DIR/firmware/build"
+TARGET_FIRMWARE_ROOT="$REPO_ROOT/firmware"
+PROBE_IMAGE_DIR="$REPO_ROOT/build/probe-images"
+TARGET_BUILD_DIR="$REPO_ROOT/firmware/build"
 JOBS=""
 PHASE="all"  # all | build | run
 
@@ -104,14 +105,14 @@ if [[ -n "$JOBS" ]]; then
 fi
 
 if [[ "$PHASE" != "run" ]]; then
-    "$SCRIPT_DIR/build_miolink.sh" \
+    "$SCRIPT_DIR/miolink_build_all.sh" \
         --config "$CONFIG" \
         --miolink-firmware-root "$MIOLINK_FIRMWARE_ROOT" \
         --probe-image-dir "$PROBE_IMAGE_DIR" \
         ${JOBS_FLAG[@]+"${JOBS_FLAG[@]}"}
 
     echo
-    "$SCRIPT_DIR/build_all_test_firmware.sh" \
+    "$SCRIPT_DIR/targets_build_all.sh" \
         --config "$CONFIG" \
         --target-firmware-root "$TARGET_FIRMWARE_ROOT" \
         --target-build-dir "$TARGET_BUILD_DIR" \
@@ -124,7 +125,7 @@ if [[ "$PHASE" != "build" ]]; then
         FORWARD=(-- "${EXTRA_RUN_ARGS[@]}")
     fi
     echo
-    "$SCRIPT_DIR/run_bench_tests.sh" \
+    "$SCRIPT_DIR/bench_run_tests_only.sh" \
         --config "$CONFIG" \
         --probe-image-dir "$PROBE_IMAGE_DIR" \
         --target-build-dir "$TARGET_BUILD_DIR" \

@@ -12,7 +12,7 @@ back on should not require a rebuild. Pass the same ``--probe-image-dir``
 to ``run_bench.py`` so the runner finds the artefacts produced here.
 
 Usage:
-    python scripts/build/build_miolink.py \\
+    python scripts/miolink/build_all.py \\
         --config config/bench_pizero2w.yaml \\
         --miolink-firmware-root /path/to/MioLink/firmware \\
         --probe-image-dir /path/to/probe-images
@@ -25,15 +25,15 @@ import shutil
 import sys
 from pathlib import Path
 
-# This script lives in scripts/build/ and is run directly. Put scripts/
-# on sys.path for the miolink/ and build/ packages, and scripts/bench/
+# This script lives in scripts/miolink/ and is run directly. Put scripts/
+# on sys.path for the miolink/ and cmake/ packages, and scripts/bench/
 # for the shared bench_config module.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
 sys.path.insert(0, str(_SCRIPTS_DIR / "bench"))
 
 import miolink
-from build.cmake_build import BuildError, positive_int
+from cmake.cmake_build import BuildError, positive_int
 from bench_config import (
     BuildVariant,
     load_bench_config,

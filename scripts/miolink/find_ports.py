@@ -6,7 +6,7 @@ by its USB bus address. MioLink exposes two CDC ACM interfaces:
   - Interface 2: UART bridge
 
 Usage as module:
-    from usb_helpers.find_device import find_device_address
+    from usbutil.find_device import find_device_address
     from miolink import find_serial_ports
 
     addr = find_device_address(vid=0x1D50, pid=0x6018, serial="XXXX")
@@ -28,11 +28,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Allow `from usb_helpers.find_device import ...` whether this file is
+# Allow `from usbutil.find_device import ...` whether this file is
 # run as a standalone CLI or imported as `miolink.find_ports` from another script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from usb_helpers.find_device import UsbDeviceAddress, find_device_address
+from usbutil.find_device import UsbDeviceAddress, find_device_address
 
 _PLATFORM = platform.system()
 

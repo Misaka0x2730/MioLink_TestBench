@@ -9,7 +9,7 @@ USB serial number. Orchestrates the full pipeline:
 
 The .uf2 is intentionally NOT copied to the BOOTSEL MSC volume: that
 transfer is unacknowledged and an occasional dropped USB block leaves the
-device silently stuck in BOOTSEL (see picotool/load.py for details).
+device silently stuck in BOOTSEL (see picotool_load.py for details).
 
 Usage as module:
     from miolink import flash_miolink
@@ -25,25 +25,21 @@ import argparse
 import sys
 from pathlib import Path
 
-# Allow sibling-package imports (`usb_helpers`, `dfu`, `uf2`) whether this
-# file is run as a standalone CLI or imported as `miolink_flash.flash` from
+# Allow sibling-package imports (`usbutil`, `miolink`) whether this
+# file is run as a standalone CLI or imported as `miolink.flash` from
 # another script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from usb_helpers.find_device import (
+from usbutil.find_device import (
     DeviceNotFoundError,
     find_device_address,
 )
-from dfu.detach import (
+from miolink.dfu_detach import (
     DfuDetachError,
     DfuUtilNotFoundError,
     dfu_detach,
 )
-from uf2.upload import (
-    Uf2ValidationError,
-    validate_uf2,
-)
-from picotool.load import (
+from miolink.picotool_load import (
     BootselDeviceNotFoundError,
     PicotoolLoadError,
     PicotoolNotFoundError,
@@ -52,6 +48,46 @@ from picotool.load import (
 
 MIOLINK_VID = 0x1D50
 MIOLINK_PID = 0x6018
+
+# ── UF2 file validation ──────────────────────────────────────────────
+# Self-contained here: the probe is flashed via picotool over PICOBOOT,
+# not the USB-MSC drag-and-drop path, so only this lightweight format
+# check is needed (the old uf2/ MSC uploader was unused and removed).
+
+_UF2_MAGIC_0 = 0x0A324655  # "UF2\n"
+_UF2_MAGIC_1 = 0x9E5D5157
+_UF2_BLOCK_SIZE = 512
+
+
+class Uf2ValidationError(Exception):
+    """Raised when the file is not a valid UF2."""
+
+
+def validate_uf2(path: Path) -> None:
+    """Verify the file exists and has valid UF2 header magic bytes."""
+    if not path.exists():
+        raise FileNotFoundError(f"UF2 file not found: {path}")
+
+    if path.suffix.lower() != ".uf2":
+        raise Uf2ValidationError(f"Expected .uf2 extension: {path.name}")
+
+    size = path.stat().st_size
+    if size < _UF2_BLOCK_SIZE:
+        raise Uf2ValidationError(
+            f"File too small ({size} bytes, min {_UF2_BLOCK_SIZE}): {path.name}"
+        )
+
+    with open(path, "rb") as f:
+        header = f.read(8)
+
+    magic0 = int.from_bytes(header[0:4], "little")
+    magic1 = int.from_bytes(header[4:8], "little")
+    if magic0 != _UF2_MAGIC_0 or magic1 != _UF2_MAGIC_1:
+        raise Uf2ValidationError(
+            f"Invalid UF2 magic in {path.name}: "
+            f"0x{magic0:08X}:0x{magic1:08X}, "
+            f"expected 0x{_UF2_MAGIC_0:08X}:0x{_UF2_MAGIC_1:08X}"
+        )
 
 
 def flash_miolink(

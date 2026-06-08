@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
 # Build every test_board fixture firmware variant referenced by the bench
-# YAML (every (cli, swo) combo x every platform) for run_bench_tests.sh.
+# YAML (every (cli, swo) combo x every platform) for bench_run_tests_only.sh.
 #
-# Thin wrapper around scripts/build/build_all_test_firmware.py with
+# Thin wrapper around scripts/targets/build_all.py with
 # opinionated defaults so a typical run boils down to:
 #
-#     ./build_all_test_firmware.sh
+#     ./scripts/targets_build_all.sh
 #
-# Defaults (relative to the directory this script lives in):
+# Defaults (relative to the repo root):
 #   --config              config/bench_pizero2w.yaml
 #   --target-firmware-root  firmware/
 #   --target-build-dir    firmware/build/
@@ -26,18 +26,19 @@
 # HC32F460 DDL release into firmware/external/ and have the next build
 # pick it up automatically.
 #
-# Exit code: whatever build_all_test_firmware.py returns (stops at first
+# Exit code: whatever build_all.py returns (stops at first
 # error).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-CONFIG="$SCRIPT_DIR/config/bench_pizero2w.yaml"
-TARGET_FIRMWARE_ROOT="$SCRIPT_DIR/firmware"
-TARGET_BUILD_DIR="$SCRIPT_DIR/firmware/build"
-HC32F460_DDL_ZIP="$SCRIPT_DIR/firmware/external/hc32f460_ddl.zip"
-HC32F460_DDL_DIR="$SCRIPT_DIR/firmware/external/hc32f460_ddl"
+CONFIG="$REPO_ROOT/config/bench_pizero2w.yaml"
+TARGET_FIRMWARE_ROOT="$REPO_ROOT/firmware"
+TARGET_BUILD_DIR="$REPO_ROOT/firmware/build"
+HC32F460_DDL_ZIP="$REPO_ROOT/firmware/external/hc32f460_ddl.zip"
+HC32F460_DDL_DIR="$REPO_ROOT/firmware/external/hc32f460_ddl"
 JOBS=""
 
 usage() {
@@ -85,8 +86,8 @@ if [[ -f "$HC32F460_DDL_ZIP" ]]; then
     rm -f "$HC32F460_DDL_ZIP"
 fi
 
-echo "=== build_all_test_firmware: build test_board fixtures ==="
-python3 "$SCRIPT_DIR/scripts/build/build_all_test_firmware.py" \
+echo "=== build_all: build test_board fixtures ==="
+python3 "$SCRIPT_DIR/targets/build_all.py" \
     --config "$CONFIG" \
     --target-firmware-root "$TARGET_FIRMWARE_ROOT" \
     --target-build-dir "$TARGET_BUILD_DIR" \

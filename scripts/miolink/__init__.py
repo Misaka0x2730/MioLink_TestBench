@@ -4,6 +4,8 @@ Modules:
   - build: rebuild the MioLink firmware from scratch (wipe + cmake + build).
   - flash: flash a .uf2 firmware image onto a MioLink probe via DFU+UF2.
   - find_ports: discover the GDB and UART serial ports of an enumerated MioLink.
+  - dfu_detach: send a DFU_DETACH request to a probe in DFU Runtime mode.
+  - picotool_load: flash an RP2040/RP2350 probe in BOOTSEL via picotool.
 
 Public symbols of each module are re-exported here so callers can write
 `from miolink import flash_miolink, find_serial_ports` or

@@ -4,14 +4,14 @@ Sends a DFU_DETACH request to a USB device identified by its bus address,
 causing it to transition from Runtime mode to DFU mode.
 
 Usage as module:
-    from usb_helpers.find_device import find_device_address
-    from dfu.detach import dfu_detach
+    from usbutil.find_device import find_device_address
+    from miolink.dfu_detach import dfu_detach
 
     addr = find_device_address(vid=0x1D50, pid=0x6018, serial="XXXX")
     dfu_detach(addr)
 
 Usage as CLI:
-    python dfu/detach.py --path 1-1.3.4
+    python miolink/dfu_detach.py --path 1-1.3.4
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Allow `from usb_helpers.find_device import ...` whether this file is
-# run as a standalone CLI or imported as `dfu.detach` from another script.
+# Allow `from usbutil.find_device import ...` whether this file is
+# run as a standalone CLI or imported as `miolink.dfu_detach` from another script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from usb_helpers.find_device import UsbDeviceAddress
+from usbutil.find_device import UsbDeviceAddress
 
 
 class DfuUtilNotFoundError(Exception):

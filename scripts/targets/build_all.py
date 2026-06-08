@@ -14,7 +14,7 @@ back on should not require a rebuild. Pass the same ``--target-build-dir``
 to ``run_bench.py`` so the runner finds the artefacts produced here.
 
 Usage:
-    python scripts/build/build_all_test_firmware.py \\
+    python scripts/targets/build_all.py \\
         --config config/bench_pizero2w.yaml \\
         --target-firmware-root /path/to/MioLink_TestBench/firmware \\
         --target-build-dir /path/to/MioLink_TestBench/firmware/build
@@ -26,25 +26,21 @@ import argparse
 import sys
 from pathlib import Path
 
-# This script lives in scripts/build/ and is run directly. Put scripts/
-# on sys.path for the targets/ and build/ packages, and scripts/bench/
+# This script lives in scripts/targets/ and is run directly. Put scripts/
+# on sys.path for the targets/ and cmake/ packages, and scripts/bench/
 # for the shared bench_config module.
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
 sys.path.insert(0, str(_SCRIPTS_DIR / "bench"))
 
 import targets
-from build.cmake_build import BuildError, positive_int
+from cmake.cmake_build import BuildError, positive_int
 from bench_config import (
     _CLI_TO_CMAKE,
+    _SWO_TO_CMAKE,
     load_bench_config,
     target_build_subdir,
 )
-
-# Maps a YAML ``swo`` state to the ``CONFIG_TEST_SWO`` CMake value that
-# enables / disables the periodic SWO trace output in the test_board
-# fixture firmware.
-_SWO_TO_CMAKE = {"connected": "ON", "not_present": "OFF"}
 
 
 def _build_parser() -> argparse.ArgumentParser:

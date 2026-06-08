@@ -1,7 +1,7 @@
 """MioLink_TestBench target firmware rebuild script.
 
 Thin target-firmware wrapper around the shared
-:func:`build.cmake_build.cmake_rebuild` driver. Wipes a build directory,
+:func:`cmake.cmake_build.cmake_rebuild` driver. Wipes a build directory,
 re-runs CMake configure for the MioLink_TestBench source tree, builds
 ``test_board_<platform>`` for one or all platforms, and returns the
 path(s) to the produced ``.elf`` file(s).
@@ -34,11 +34,11 @@ import argparse
 import sys
 from pathlib import Path
 
-# Allow `from build.cmake_build import ...` whether this file is run
+# Allow `from cmake.cmake_build import ...` whether this file is run
 # as a standalone CLI or imported as `targets.build` from another script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from build.cmake_build import BuildError, cmake_rebuild, positive_int
+from cmake.cmake_build import BuildError, cmake_rebuild, positive_int
 
 # ── Constants ────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ Connects to a Black Magic Probe via GDB/MI, scans for targets,
 verifies the target name, and flashes an ELF firmware file.
 
 Usage as module:
-    from gdb_bmp import BmpTargetConfig, flash_target, BmpFlashConfig
+    from targets.gdb import BmpTargetConfig, flash_target, BmpFlashConfig
 
     target = BmpTargetConfig(
         gdb_port="/dev/cu.usbmodem1134401",
@@ -14,7 +14,7 @@ Usage as module:
     flash_target(target, BmpFlashConfig(mass_erase=True))
 
 Usage as CLI:
-    python gdb_bmp/target_flash.py --port /dev/cu.usbmodem1134401 \\
+    python targets/gdb/load.py --port /dev/cu.usbmodem1134401 \\
         --interface swd --target STM32F1 firmware.elf
 """
 
@@ -25,11 +25,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Allow `from gdb_bmp.session import ...` whether this file is run as a
-# standalone CLI or imported as `gdb_bmp.target_flash` from another script.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Allow `from targets.gdb.session import ...` whether this file is run as a
+# standalone CLI or imported as `targets.gdb.load` from another script.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from gdb_bmp.session import (
+from targets.gdb.session import (
     BmpError,
     BmpSession,
     BmpTargetConfig,
